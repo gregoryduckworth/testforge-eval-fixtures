@@ -1,5 +1,6 @@
 import { cartTotal, itemCount } from './cart.js';
 import { formatPrice, PRODUCTS } from './catalogue.js';
+import { deliveryEstimate } from './delivery.js';
 
 const escape = (text) =>
   String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -63,12 +64,13 @@ export function cartPage(lines) {
   return layout('Your cart', lines, `${linesTable(lines)}\n      <a href="/checkout">Go to checkout</a>`);
 }
 
-export function checkoutPage(lines) {
+export function checkoutPage(lines, method) {
   if (!lines.length) return layout('Checkout', lines, '<p>Your cart is empty.</p><a href="/">Browse the shop</a>');
   return layout(
     'Checkout',
     lines,
     `${linesTable(lines)}
+      <p id="delivery">${deliveryEstimate(method)}</p>
       <form method="post" action="/orders">
         <label>Name <input name="name" required /></label>
         <label>Email <input name="email" type="email" required /></label>

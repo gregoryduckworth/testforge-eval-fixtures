@@ -52,7 +52,9 @@ async function handle(request, response) {
   if (pathname === '/') return html(response, 200, cataloguePage(lines));
   if (product && findProduct(product[1])) return html(response, 200, productPage(findProduct(product[1]), lines));
   if (pathname === '/cart') return html(response, 200, cartPage(lines));
-  if (pathname === '/checkout') return html(response, 200, checkoutPage(lines));
+  // The delivery method chosen on the cart page; checkout shows when the order arrives.
+  const method = new URL(request.url ?? '/', 'http://localhost').searchParams.get('delivery') ?? undefined;
+  if (pathname === '/checkout') return html(response, 200, checkoutPage(lines, method));
   if (order && findOrder(Number(order[1]))) return html(response, 200, confirmationPage(findOrder(Number(order[1]))));
   return html(response, 404, notFoundPage(lines));
 }
