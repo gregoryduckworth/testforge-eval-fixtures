@@ -15,7 +15,12 @@ async function route(req, res) {
   if (url.pathname === '/search') {
     const q = url.searchParams.get('q') ?? '';
     if (!q) return send(res, 400, { error: 'q is required' });
-    return send(res, 200, { orders: await searchOrders(q) });
+    const limit = Math.min(Number(url.searchParams.get('limit') ?? 20), 50);
+    const offset = Number(url.searchParams.get('offset') ?? 0);
+    if (!Number.isInteger(limit) || !Number.isInteger(offset) || limit < 1 || offset < 0)
+      return send(res, 400, { error: 'limit and offset are whole numbers' });
+    const found = await searchOrders(q);
+    return send(res, 200, { orders: found.slice(offset, offset + limit), total: found.length });
   }
   const match = url.pathname.match(/^\/orders\/(\d+)$/);
   if (match) {
