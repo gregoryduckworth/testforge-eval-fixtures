@@ -51,6 +51,12 @@ export async function orderLines(orderId) {
     .map((l) => ({ ...l, priceCents: products.find((p) => p.id === l.productId).priceCents }));
 }
 
+/** The names of `ids`' products, in one round trip: a map from id to name. */
+export async function productNames(ids) {
+  await roundTrip();
+  return new Map(products.filter((p) => ids.includes(p.id)).map((p) => [p.id, p.name]));
+}
+
 export async function findProduct(id) {
   await roundTrip();
   return products.find((p) => p.id === id);

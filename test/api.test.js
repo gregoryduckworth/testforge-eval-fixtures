@@ -36,6 +36,7 @@ describe('orders API', () => {
     const { status, body } = await get('/orders/3');
     assert.equal(status, 200);
     assert.equal(body.lines.length, 8);
+    assert.ok(body.lines.every((l) => /^Product \d+$/.test(l.productName)));
     assert.equal(
       body.totalCents,
       body.lines.reduce((sum, l) => sum + l.priceCents * l.quantity, 0),

@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { findOrder, listOrders, orderLines } from './store.js';
+import { findOrder, listOrders, orderLines, productNames } from './store.js';
 import { searchOrders } from './search.js';
 
 const send = (res, status, body) => {
@@ -22,6 +22,8 @@ async function route(req, res) {
     const order = await findOrder(Number(match[1]));
     if (!order) return send(res, 404, { error: 'no such order' });
     const items = await orderLines(order.id);
+    const names = await productNames(items.map((line) => line.productId));
+    for (const line of items) line.productName = names.get(line.productId);
     const totalCents = items.reduce((sum, l) => sum + l.priceCents * l.quantity, 0);
     return send(res, 200, { ...order, lines: items, totalCents });
   }
