@@ -21,3 +21,7 @@ describe('stock', () => {
     ]);
   });
 });
+
+it('covers an order of nothing', () => {
+  expect(inStock([], {})).toBe(true);
+});
