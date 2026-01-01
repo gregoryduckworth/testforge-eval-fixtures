@@ -1,0 +1,13 @@
+{
+  "name": "smoke-shop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}
