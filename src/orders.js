@@ -5,7 +5,10 @@ export function subtotal(lines) {
   return lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
 }
 
-/** What the customer pays, in cents: the goods and their shipping. */
+/**
+ * What the customer pays, in cents: the goods and their shipping. Taxes are included in each
+ * line's price.
+ */
 export function orderTotal(lines) {
   const goods = subtotal(lines);
   return goods + shippingFor(goods);
