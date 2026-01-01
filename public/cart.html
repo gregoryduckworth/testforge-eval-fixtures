@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Your cart - Corner Shop</title>
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Main">
+        <a href="/">Home</a>
+        <a href="/cart">Cart</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+      </nav>
+    </header>
+    <main>
+      <h1>Your cart</h1>
+      <ul>
+        <li><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="48" height="48" /> Blue mug, $8.00</li>
+        <li><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="48" height="48" /> Dotted notebook, $5.50</li>
+      </ul>
+      <p>Total: <span id="total">$13.50</span></p>
+      <form id="coupon">
+        <input type="text" name="code" placeholder="Coupon code" />
+        <button type="submit">Apply</button>
+      </form>
+      <p id="coupon-result" role="status"></p>
+    </main>
+    <script>
+      document.getElementById('coupon').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const code = new FormData(event.target).get('code');
+        const result = document.getElementById('coupon-result');
+        if (code === 'TEA10') {
+          document.getElementById('total').textContent = '$12.15';
+          result.textContent = 'TEA10 applied: 10% off';
+        } else {
+          result.textContent = 'That code isn’t valid';
+        }
+      });
+    </script>
+  </body>
+</html>
