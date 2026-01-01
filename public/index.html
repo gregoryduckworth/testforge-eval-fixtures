@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Todos</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Todos</h1>
+      <form id="new-todo">
+        <label for="title">What needs doing?</label>
+        <input id="title" name="title" autocomplete="off" />
+        <button type="submit">Add</button>
+      </form>
+      <ul id="list" aria-label="Todos"></ul>
+      <footer>
+        <p id="count" aria-live="polite"></p>
+        <nav aria-label="Filter">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="active" aria-pressed="false">Active</button>
+          <button type="button" data-filter="completed" aria-pressed="false">Completed</button>
+        </nav>
+        <button type="button" id="clear-completed" hidden>Clear completed</button>
+      </footer>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
