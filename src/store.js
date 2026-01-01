@@ -23,6 +23,7 @@ export function createStore() {
         quantity,
         status: 'placed',
         totalCents: product.priceCents * quantity,
+        currency: 'USD',
       };
       orders.set(order.id, order);
       return order;

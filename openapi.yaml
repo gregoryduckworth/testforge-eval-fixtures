@@ -139,7 +139,7 @@ components:
           type: integer
     Order:
       type: object
-      required: [id, productId, quantity, status, totalCents]
+      required: [id, productId, quantity, status, total]
       properties:
         id:
           type: integer
@@ -150,6 +150,15 @@ components:
         status:
           type: string
           enum: [placed]
-        totalCents:
+        total:
+          $ref: '#/components/schemas/Money'
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
           type: integer
-          description: The order's total, in US cents
+          description: In the currency's minor unit (cents)
+        currency:
+          type: string
+          enum: [USD, EUR]

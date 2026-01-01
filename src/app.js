@@ -17,7 +17,7 @@ function orderView(order) {
     productId: order.productId,
     quantity: order.quantity,
     status: order.status,
-    totalCents: order.totalCents,
+    total: { amount: order.totalCents, currency: order.currency },
   };
 }
 
