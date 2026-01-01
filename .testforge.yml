@@ -1,0 +1,4 @@
+execution:
+  baseUrl: http://localhost:4310
+  startCommand: npm start
+  readyUrl: http://localhost:4310/health
