@@ -31,7 +31,11 @@ export const lines = orders.flatMap((order) =>
 
 export async function listOrders() {
   await roundTrip();
-  return orders.map((o) => ({ ...o, lineCount: lines.filter((l) => l.orderId === o.id).length }));
+  return orders.map((o) => {
+    const own = lines.filter((l) => l.orderId === o.id);
+    const totalCents = own.reduce((sum, l) => sum + products[l.productId - 1].priceCents * l.quantity, 0);
+    return { ...o, lineCount: own.length, totalCents };
+  });
 }
 
 export async function findOrder(id) {
