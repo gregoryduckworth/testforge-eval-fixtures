@@ -26,6 +26,12 @@ describe('orders API', () => {
     assert.equal(body.orders[0].lineCount, 8);
   });
 
+  it("lists each order's total, as the order itself gives it", async () => {
+    const { body } = await get('/orders');
+    const listed = body.orders.find((o) => o.id === 3);
+    assert.equal(listed.totalCents, (await get('/orders/3')).body.totalCents);
+  });
+
   it('returns an order with its lines and total', async () => {
     const { status, body } = await get('/orders/3');
     assert.equal(status, 200);
