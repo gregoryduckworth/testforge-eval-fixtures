@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { findOrder, findProduct, listOrders, orderLines } from './store.js';
 import { searchOrders } from './search.js';
+
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const send = (res, status, body) => {
   res.writeHead(status, { 'content-type': 'application/json' });
@@ -10,7 +13,7 @@ const send = (res, status, body) => {
 async function route(req, res) {
   const url = new URL(req.url, 'http://localhost');
   if (req.method !== 'GET') return send(res, 405, { error: 'method not allowed' });
-  if (url.pathname === '/health') return send(res, 200, { status: 'ok' });
+  if (url.pathname === '/health') return send(res, 200, { status: 'ok', version });
   if (url.pathname === '/orders') return send(res, 200, { orders: await listOrders() });
   if (url.pathname === '/search') {
     const q = url.searchParams.get('q') ?? '';
