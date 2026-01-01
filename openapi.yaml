@@ -97,6 +97,27 @@ paths:
                 $ref: '#/components/schemas/Order'
         '404':
           $ref: '#/components/responses/NotFound'
+  /orders/{id}/cancel:
+    post:
+      operationId: cancelOrder
+      summary: Cancel an order that is still placed
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The order, cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The order is already cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   parameters:
     Id:
@@ -149,7 +170,7 @@ components:
           type: integer
         status:
           type: string
-          enum: [placed]
+          enum: [placed, cancelled]
         total:
           $ref: '#/components/schemas/Money'
     Money:

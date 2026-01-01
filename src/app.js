@@ -58,6 +58,13 @@ export function createApp(store = createStore()) {
       const found = store.order(Number(order[1]));
       return found ? send(response, 200, orderView(found)) : send(response, 404, { error: 'No such order' });
     }
+    const cancel = /^\/orders\/(\d+)\/cancel$/.exec(pathname);
+    if (request.method === 'POST' && cancel) {
+      const found = store.order(Number(cancel[1]));
+      if (!found) return send(response, 404, { error: 'No such order' });
+      if (found.status === 'cancelled') return send(response, 409, { error: 'The order is already cancelled' });
+      return send(response, 200, orderView(store.cancelOrder(found)));
+    }
     return send(response, 404, { error: 'Not found' });
   });
 }

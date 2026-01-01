@@ -15,6 +15,11 @@ export function createStore() {
     products: () => products,
     product: (id) => products.find((p) => p.id === id),
     order: (id) => orders.get(id),
+    cancelOrder(order) {
+      order.status = 'cancelled';
+      this.product(order.productId).stock += order.quantity;
+      return order;
+    },
     placeOrder(product, quantity) {
       product.stock -= quantity;
       const order = {
