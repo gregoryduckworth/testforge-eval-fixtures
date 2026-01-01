@@ -10,3 +10,5 @@ How the tea shop prices a basket: line totals, the spend and bulk discounts, cou
 npm install
 npm test
 ```
+
+Prices are in whole pence everywhere; `formatPence` is the only place that shows pounds.
