@@ -1,4 +1,4 @@
-/** The lines of an order the stock can't cover, with how many are short. */
+/** The lines of an order the stock can't cover, with how many are short (by SKU). */
 export function shortages(lines, stock) {
   return lines
     .map((line) => ({ sku: line.sku, short: line.quantity - (stock[line.sku] ?? 0) }))
