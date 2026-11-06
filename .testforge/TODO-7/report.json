@@ -1,0 +1,303 @@
+{
+  "status": "succeeded",
+  "ticketKey": "TODO-7",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/todo-7-complete-filter-and-clear-todo-soxg",
+  "frameworks": [
+    "playwright"
+  ],
+  "strategy": {
+    "summary": "The todo app (public/app.js, purely client-side state served by server.js) lets users tick todos complete, filter All/Active/Completed and clear completed ones. Playwright e2e tests against the real app prove the checkbox toggles strike-through and the \"items left\" count both ways, each filter shows exactly the right todos and is aria-pressed, and \"Clear completed\" is shown only while something is completed and removes all completed todos.",
+    "inScope": [
+      "Completing/uncompleting a todo via its checkbox (strike-through, items-left count)",
+      "All/Active/Completed filters and their pressed state",
+      "Clear completed visibility and behaviour"
+    ],
+    "outOfScope": [
+      "Adding todos (covered by tests/add-todo.spec.js)",
+      "Persistence across reloads (the app keeps todos in memory only; ticket doesn't ask)"
+    ],
+    "assumptions": [
+      "The real app runs via the existing playwright.config.js webServer (node server.js); nothing is faked. State is in-page memory, so every test starts from a fresh page and creates its own todos through the UI, which makes tests independent.",
+      "\"Struck through\" is asserted as the todo text's computed text-decoration-line being line-through (the app applies it through li.completed span in styles.css), plus the checkbox's checked state.",
+      "The only refusal-like behaviour in scope is that Clear completed is not offered when nothing is completed; the app has no other way to refuse these actions."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "Count text and pluralisation drift (\"1 item left\" vs \"2 items left\")",
+        "impact": "medium",
+        "mitigation": "Assert the exact count text before and after toggling."
+      },
+      {
+        "description": "Filter could hide the wrong items or not re-render after a toggle",
+        "impact": "high",
+        "mitigation": "Assert exact list contents per filter with mixed completed/active todos."
+      },
+      {
+        "description": "Clear completed could remove active todos or only one completed todo",
+        "impact": "high",
+        "mitigation": "Clear with two completed and one active todo, assert exactly the active one remains."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "Ticking a todo's checkbox marks it completed (struck through, items left count decreases by one); unticking reverses both.",
+        "derived": false
+      },
+      {
+        "id": "AC2",
+        "text": "Active shows only not-completed todos, Completed only completed ones, All shows every todo; the selected filter is shown as pressed.",
+        "derived": false
+      },
+      {
+        "id": "AC3",
+        "text": "\"Clear completed\" is visible only while at least one todo is completed, and clicking it removes every completed todo.",
+        "derived": false
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "ticking a todo strikes it through and decrements items left",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "Fresh page"
+        ],
+        "steps": [
+          "Add 'Buy milk' and 'Walk dog'",
+          "Assert '2 items left'",
+          "Tick 'Buy milk' checkbox"
+        ],
+        "expected": "Checkbox checked, 'Buy milk' text has line-through, 'Walk dog' does not, count reads '1 item left'",
+        "testData": "Two todo titles",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Core completion behaviour"
+      },
+      {
+        "id": "TC2",
+        "title": "unticking a completed todo removes the strike-through and restores items left",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "Fresh page"
+        ],
+        "steps": [
+          "Add two todos",
+          "Tick 'Buy milk'",
+          "Assert '1 item left'",
+          "Untick 'Buy milk'"
+        ],
+        "expected": "Checkbox unchecked, text not line-through, count reads '2 items left'",
+        "testData": "Two todo titles",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Reversal is explicitly required"
+      },
+      {
+        "id": "TC3",
+        "title": "Active filter shows only todos that are not completed and is pressed",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Fresh page"
+        ],
+        "steps": [
+          "Add 'Buy milk', 'Walk dog', 'Pay rent'",
+          "Tick 'Walk dog'",
+          "Click Active"
+        ],
+        "expected": "List is exactly ['Buy milk', 'Pay rent']; Active aria-pressed=true, All and Completed aria-pressed=false",
+        "testData": "Three titles",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Filter correctness"
+      },
+      {
+        "id": "TC4",
+        "title": "Completed filter shows only completed todos and is pressed",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Fresh page"
+        ],
+        "steps": [
+          "Add three todos",
+          "Tick 'Walk dog'",
+          "Click Completed"
+        ],
+        "expected": "List is exactly ['Walk dog']; Completed pressed, others not",
+        "testData": "Three titles",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Filter correctness"
+      },
+      {
+        "id": "TC5",
+        "title": "All filter shows every todo again and is pressed",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Fresh page"
+        ],
+        "steps": [
+          "Add three todos",
+          "Tick 'Walk dog'",
+          "Click Completed, then All"
+        ],
+        "expected": "List is exactly all three in order; All pressed, others not",
+        "testData": "Three titles",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Returning to All must restore every todo"
+      },
+      {
+        "id": "TC6",
+        "title": "Clear completed is shown only while a todo is completed",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "Fresh page"
+        ],
+        "steps": [
+          "Add 'Buy milk' and assert it is listed",
+          "Assert Clear completed hidden",
+          "Tick it; assert Clear completed visible",
+          "Untick it; assert hidden again"
+        ],
+        "expected": "Hidden with no completed todos, visible with one, hidden after unticking",
+        "testData": "One title",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Visibility rule including the 'not offered' case"
+      },
+      {
+        "id": "TC7",
+        "title": "Clear completed removes every completed todo and keeps active ones",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "Fresh page"
+        ],
+        "steps": [
+          "Add 'Buy milk', 'Walk dog', 'Pay rent'",
+          "Tick 'Buy milk' and 'Pay rent'",
+          "Click Clear completed"
+        ],
+        "expected": "List is exactly ['Walk dog'], '1 item left', Clear completed hidden",
+        "testData": "Three titles",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Must remove all completed, not just one, and keep active ones"
+      }
+    ],
+    "environmentNotes": "Uses the existing playwright.config.js webServer (node server.js on port 4173, baseURL http://localhost:4173). Browsers must be installed (npx playwright install chromium)."
+  },
+  "results": [
+    {
+      "framework": "playwright",
+      "command": "playwright test tests/complete-filter-clear.spec.js --reporter=json",
+      "exitCode": 0,
+      "durationMs": 2970,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "total": 7,
+      "cases": [
+        {
+          "title": "ticking a todo strikes it through and decrements items left [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 252
+        },
+        {
+          "title": "unticking a completed todo removes the strike-through and restores items left [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 266
+        },
+        {
+          "title": "Active filter shows only todos that are not completed and is pressed [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 282
+        },
+        {
+          "title": "Completed filter shows only completed todos and is pressed [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 302
+        },
+        {
+          "title": "All filter shows every todo again and is pressed [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 339
+        },
+        {
+          "title": "Clear completed is shown only while a todo is completed [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 211
+        },
+        {
+          "title": "Clear completed removes every completed todo and keeps active ones [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 332
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "tests/complete-filter-clear.spec.js",
+      "status": "added"
+    }
+  ],
+  "usage": {
+    "costUsd": 0,
+    "inputTokens": 0,
+    "outputTokens": 0
+  },
+  "startedAt": "2026-11-06T07:54:43.724Z",
+  "finishedAt": "2026-11-06T07:58:15.507Z"
+}
