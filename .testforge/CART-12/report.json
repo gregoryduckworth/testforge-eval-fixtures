@@ -1,0 +1,410 @@
+{
+  "status": "succeeded",
+  "ticketKey": "CART-12",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/cart-12-bulk-discount-coupons-and-free-08ls",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "src/cart.js already implements cartTotal (bulk discount, SAVE5 coupon, shipping). Unit tests with Vitest must prove each AC through the public functions cartTotal/bulkDiscount, including the boundaries (10 items, $50, $0 floor) and refusal of unknown coupons. Reading the code shows bulkDiscount uses `> BULK_THRESHOLD`, so a cart of exactly 10 items gets no discount, against AC1 and the constant's own doc comment (\"at least this many\"): that case is expected to fail and will be recorded as a defect.",
+    "inScope": [
+      "cartTotal and bulkDiscount in src/cart.js: bulk discount threshold, coupon handling, $0 floor, shipping threshold, empty cart"
+    ],
+    "outOfScope": [
+      "Line-total/subtotal behaviour already covered by test/cart.test.js",
+      "Any UI or checkout endpoint (none exists in the repo)"
+    ],
+    "assumptions": [
+      "Coupon codes are case-sensitive: 'save5' counts as 'any other coupon code' and is refused (the code does this).",
+      "Refusal with an error means cartTotal throws; the test checks the error names the submitted code rather than matching the whole wording.",
+      "Amounts are compared rounded to cents, as cartTotal returns them."
+    ],
+    "openQuestions": [
+      "bulkDiscount uses `itemCount > BULK_THRESHOLD`; AC1 and the BULK_THRESHOLD comment say 10 or more. Is the off-by-one a defect (assumed) or is the ticket wrong?"
+    ],
+    "risks": [
+      {
+        "description": "Off-by-one at the bulk threshold (exactly 10 items)",
+        "impact": "high",
+        "mitigation": "TC1 tests exactly 10 items; TC2 tests 9."
+      },
+      {
+        "description": "Coupon applied before the bulk discount, or shipping threshold computed before discounts",
+        "impact": "high",
+        "mitigation": "TC4 picks amounts where each wrong order gives a different total; TC7 reaches $50 only after the coupon."
+      },
+      {
+        "description": "Negative goods total when the coupon exceeds the goods",
+        "impact": "medium",
+        "mitigation": "TC5."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "A cart with 10 or more items in total (sum of line quantities) gets 10% off its subtotal; fewer than 10 gets none.",
+        "derived": false
+      },
+      {
+        "id": "AC2",
+        "text": "Coupon SAVE5 takes $5 off after the bulk discount, with the goods never below $0; any other coupon code is refused with an error.",
+        "derived": false
+      },
+      {
+        "id": "AC3",
+        "text": "Shipping is free when the goods cost $50 or more after discounts, otherwise $4.99; an empty cart costs $0.",
+        "derived": false
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "gives 10% off a cart of exactly 10 items",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{ price: 3, quantity: 10 }])"
+        ],
+        "expected": "31.99 (30 - 3 discount + 4.99 shipping). Expected to fail today: code returns 34.99 (defect, marked it.fails).",
+        "testData": "10 x $3",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "Boundary of AC1; the code uses > instead of >=."
+      },
+      {
+        "id": "TC2",
+        "title": "gives no bulk discount to a cart of 9 items",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{ price: 3, quantity: 9 }])"
+        ],
+        "expected": "31.99 (27 + 4.99)",
+        "testData": "9 x $3",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "Just below the threshold."
+      },
+      {
+        "id": "TC3",
+        "title": "counts items across lines by quantity for the bulk discount",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{ price: 2, quantity: 6 }, { price: 2, quantity: 5 }])"
+        ],
+        "expected": "24.79 (22 - 2.20 + 4.99)",
+        "testData": "two lines, 11 items",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "Proves quantities are summed, not lines counted; 11 avoids the boundary defect."
+      },
+      {
+        "id": "TC4",
+        "title": "takes SAVE5 off after the bulk discount",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC2",
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{ price: 5, quantity: 12 }], { coupon: 'SAVE5' })"
+        ],
+        "expected": "53.99 (60 - 6 - 5 = 49 goods, below $50 so + 4.99). Coupon-first would give 54.49.",
+        "testData": "12 x $5, SAVE5",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "Order of discounts and shipping judged after discounts."
+      },
+      {
+        "id": "TC5",
+        "title": "never lets SAVE5 take the goods below $0",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{ price: 3, quantity: 1 }], { coupon: 'SAVE5' })"
+        ],
+        "expected": "4.99 (goods 0 + shipping), not 2.99",
+        "testData": "1 x $3, SAVE5",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "$0 floor."
+      },
+      {
+        "id": "TC6",
+        "title": "refuses an unknown coupon code with an error",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{ price: 3, quantity: 1 }], { coupon: 'SAVE10' })"
+        ],
+        "expected": "throws an Error whose message contains 'SAVE10'",
+        "testData": "SAVE10",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "Refusal of other codes."
+      },
+      {
+        "id": "TC7",
+        "title": "refuses a coupon code that differs from SAVE5 only in case",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "low",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{ price: 3, quantity: 1 }], { coupon: 'save5' })"
+        ],
+        "expected": "throws an Error whose message contains 'save5'",
+        "testData": "save5",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "Exact-match coupon codes."
+      },
+      {
+        "id": "TC8",
+        "title": "ships free when the goods reach exactly $50 after discounts",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{ price: 55, quantity: 1 }], { coupon: 'SAVE5' })"
+        ],
+        "expected": "50 (no shipping)",
+        "testData": "1 x $55, SAVE5",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "Free-shipping boundary, reached only after the discount."
+      },
+      {
+        "id": "TC9",
+        "title": "charges $4.99 shipping when the goods cost less than $50",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{ price: 49.99, quantity: 1 }])"
+        ],
+        "expected": "54.98",
+        "testData": "1 x $49.99",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "Just below the threshold."
+      },
+      {
+        "id": "TC10",
+        "title": "charges nothing for an empty cart",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([])"
+        ],
+        "expected": "0",
+        "testData": "",
+        "targetFile": "test/checkout.test.js",
+        "automate": true,
+        "rationale": "Empty cart has no shipping."
+      }
+    ],
+    "environmentNotes": "Pure unit tests, no services. Run with `npm test` (vitest run)."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/checkout.test.js --reporter=json --outputFile=/data/workspaces/97fcf12d-16ad-4951-bfac-0b308aec6851/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 383,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "total": 10,
+      "cases": [
+        {
+          "title": "cartTotal gives 10% off a cart of exactly 10 items",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 5.874876
+        },
+        {
+          "title": "cartTotal gives no bulk discount to a cart of 9 items",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 0.2381420000000105
+        },
+        {
+          "title": "cartTotal counts items across lines by quantity for the bulk discount",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 0.12636100000000283
+        },
+        {
+          "title": "cartTotal takes SAVE5 off after the bulk discount",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 0.1266119999999944
+        },
+        {
+          "title": "cartTotal never lets SAVE5 take the goods below $0",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 0.12073700000000542
+        },
+        {
+          "title": "cartTotal refuses an unknown coupon code with an error",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 0.47898999999999603
+        },
+        {
+          "title": "cartTotal refuses a coupon code that differs from SAVE5 only in case",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 0.18414699999999584
+        },
+        {
+          "title": "cartTotal ships free when the goods reach exactly $50 after discounts",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 0.10365600000000086
+        },
+        {
+          "title": "cartTotal charges $4.99 shipping when the goods cost less than $50",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 0.12419599999999775
+        },
+        {
+          "title": "cartTotal charges nothing for an empty cart",
+          "file": "test/checkout.test.js",
+          "status": "passed",
+          "durationMs": 0.13356899999999428
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "test/checkout.test.js",
+      "status": "added"
+    }
+  ],
+  "defects": [
+    {
+      "title": "Cart of exactly 10 items gets no bulk discount",
+      "testCaseId": "TC1",
+      "file": "test/checkout.test.js",
+      "description": "AC1: a cart with 10 or more items gets 10% off. bulkDiscount in src/cart.js uses `itemCount(items) > BULK_THRESHOLD`, so exactly 10 items gets no discount (the BULK_THRESHOLD doc comment itself says \"at least this many\"). Expected cartTotal([{price:3,quantity:10}]) = 31.99, actual 34.99.",
+      "evidence": "src/cart.js:22 `itemCount(items) > BULK_THRESHOLD`; TC1 asserting 31.99 fails (marked it.fails, run passes as expected-failure)."
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "submit_strategy",
+      "run_tests_scratch",
+      "self_check",
+      "run_tests",
+      "record_defect",
+      "run_checks",
+      "self_check",
+      "review_brief",
+      "submit_review",
+      "publish"
+    ],
+    "refusals": [],
+    "refusalsByCategory": {},
+    "optionalTools": {
+      "run_tests_scratch": 1,
+      "self_check": 2,
+      "record_defect": 1,
+      "run_checks": 1
+    },
+    "subagentCalls": 2
+  },
+  "usage": {
+    "costUsd": 0.5128710000000001,
+    "inputTokens": 467016,
+    "outputTokens": 280
+  },
+  "usageByRole": {
+    "orchestrator": {
+      "costUsd": 0.24938120000000003,
+      "inputTokens": 38,
+      "cacheReadTokens": 230496,
+      "cacheCreationTokens": 39998,
+      "outputTokens": 157,
+      "responses": 8
+    },
+    "implementer": {
+      "costUsd": 0.06310980000000001,
+      "inputTokens": 4,
+      "cacheReadTokens": 22934,
+      "cacheCreationTokens": 23278,
+      "outputTokens": 32,
+      "responses": 2
+    },
+    "reviewer": {
+      "costUsd": 0.20038,
+      "inputTokens": 12,
+      "cacheReadTokens": 115160,
+      "cacheCreationTokens": 35096,
+      "outputTokens": 91,
+      "responses": 6
+    }
+  },
+  "startedAt": "2026-11-07T10:14:03.423Z",
+  "finishedAt": "2026-11-07T10:16:02.601Z"
+}
