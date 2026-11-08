@@ -1,16 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp } from '../src/app.js';
+import { startServer } from './helpers/server.js';
 
-let server;
+let app;
 let base;
 
 beforeAll(async () => {
-  server = createApp();
-  await new Promise((resolve) => server.listen(0, resolve));
-  base = `http://localhost:${server.address().port}`;
+  app = await startServer();
+  base = app.base;
 });
 
-afterAll(() => new Promise((resolve) => server.close(resolve)));
+afterAll(() => app.close());
 
 describe('GET /products/:id', () => {
   it('returns the product', async () => {
