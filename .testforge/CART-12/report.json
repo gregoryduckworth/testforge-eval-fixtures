@@ -307,9 +307,9 @@
   "results": [
     {
       "framework": "vitest",
-      "command": "vitest run test/checkout.test.js --reporter=json --outputFile=/data/workspaces/0314d3c7-096f-4e87-ae4d-839b11d59c3b/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
+      "command": "vitest run test/checkout.test.js --reporter=json --outputFile=/data/workspaces/6c72cefc-ef27-4c87-8b6f-9030227d8844/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
       "exitCode": 0,
-      "durationMs": 286,
+      "durationMs": 564,
       "passed": 12,
       "failed": 0,
       "skipped": 0,
@@ -319,73 +319,73 @@
           "title": "cartTotal gives 10% off a cart of exactly 10 items",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 3.565805999999995
+          "durationMs": 3.912887999999981
         },
         {
           "title": "cartTotal gives no bulk discount to a cart of 9 items",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.23169699999999693
+          "durationMs": 0.32947999999998956
         },
         {
           "title": "cartTotal counts items by adding up each line's quantity for the bulk discount",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.12042499999999734
+          "durationMs": 0.17153199999998492
         },
         {
           "title": "cartTotal takes SAVE5 off after the bulk discount",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.1162259999999975
+          "durationMs": 0.16436500000000365
         },
         {
           "title": "cartTotal never lets SAVE5 take the goods below $0",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.10581299999999771
+          "durationMs": 0.15286600000001727
         },
         {
           "title": "cartTotal lets SAVE5 take goods of exactly $5 to $0",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.09628100000000472
+          "durationMs": 0.11599300000000312
         },
         {
           "title": "cartTotal refuses an unknown coupon code with an error",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.48736900000000105
+          "durationMs": 0.8091599999999914
         },
         {
           "title": "cartTotal refuses a coupon code that differs from SAVE5 only in case",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.18836400000000708
+          "durationMs": 0.30106499999999414
         },
         {
           "title": "cartTotal ships free when the goods cost exactly $50",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.1030410000000046
+          "durationMs": 0.14040799999997944
         },
         {
           "title": "cartTotal charges $4.99 shipping when the goods cost $49.99",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.12659800000000132
+          "durationMs": 0.16540599999999017
         },
         {
           "title": "cartTotal judges free shipping on the goods after the bulk discount",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.08019900000000746
+          "durationMs": 0.14024100000000317
         },
         {
           "title": "cartTotal charges nothing for an empty cart",
           "file": "test/checkout.test.js",
           "status": "passed",
-          "durationMs": 0.07079399999999225
+          "durationMs": 0.11403500000000122
         }
       ]
     }
@@ -401,15 +401,12 @@
       "title": "Bulk discount not applied to a cart of exactly 10 items",
       "testCaseId": "TC1",
       "file": "test/checkout.test.js",
-      "description": "AC1: a cart with 10 or more items gets 10% off. In src/cart.js, bulkDiscount uses `itemCount(items) > BULK_THRESHOLD`, so a cart of exactly 10 items gets no discount; it should be `>=`.",
-      "evidence": "cartTotal([{ price: 10, quantity: 10 }]) returns 100, not 90. The test is marked it.fails and passes, so its assertion fails."
+      "description": "AC1 says a cart with 10 or more items gets 10% off. src/cart.js bulkDiscount uses `itemCount(items) > BULK_THRESHOLD`, so a cart of exactly 10 items gets no discount. It should use `>=`.",
+      "evidence": "cartTotal([{ price: 10, quantity: 10 }]) returns 100 instead of 90. TC1 is marked it.fails and passes, so its assertion fails."
     }
   ],
   "flow": {
     "sequence": [
-      "submit_strategy",
-      "run_tests_scratch",
-      "self_check",
       "run_tests_scratch",
       "self_check",
       "run_tests",
@@ -422,14 +419,14 @@
     "refusals": [],
     "refusalsByCategory": {},
     "optionalTools": {
-      "run_tests_scratch": 2,
-      "self_check": 3,
+      "run_tests_scratch": 1,
+      "self_check": 2,
       "record_defect": 1
     },
-    "subagentCalls": 3
+    "subagentCalls": 2
   },
   "followUp": {
-    "parentRunId": "950dd8dc-1154-4009-9c58-84aff4d39834",
+    "parentRunId": "0314d3c7-096f-4e87-ae4d-839b11d59c3b",
     "pr": {
       "number": 42,
       "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/pull/42",
@@ -438,56 +435,46 @@
     "feedback": [
       {
         "id": "F1",
-        "kind": "review",
+        "kind": "comment",
         "author": "gregoryduckworth",
-        "body": "The totals that go through the 10% discount (99, 49.49, 54.49) are floating-point results compared with toBe. Please compare money to the cent with toBeCloseTo(value, 2), so a harmless change in how cartTotal rounds does not fail these tests for the wrong reason.",
-        "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/pull/42#pullrequestreview-5818658841",
-        "at": "2026-11-08T16:28:56Z"
-      },
-      {
-        "id": "F2",
-        "kind": "review_comment",
-        "author": "gregoryduckworth",
-        "file": "test/checkout.test.js",
-        "line": 29,
-        "body": "This only shows the floor for goods well under $5. Please add the boundary where SAVE5 takes the goods to exactly $0 (goods of $5), so the floor is proved at the edge too.",
-        "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/pull/42#discussion_r4506923228",
-        "at": "2026-11-08T16:28:56Z"
+        "body": "The helper TC6 and TC7 share is called `act`, which says nothing about what it does. Please name it after what it does (for example `checkoutWith`), so a failure message reads clearly.",
+        "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/pull/42#issuecomment-6724127994",
+        "at": "2026-11-08T16:38:17Z"
       }
     ],
-    "fetchedAt": "2026-11-08T16:29:05.425Z"
+    "fetchedAt": "2026-11-08T16:38:27.171Z"
   },
   "usage": {
-    "costUsd": 0.5618318999999999,
-    "inputTokens": 547629,
-    "outputTokens": 260
+    "costUsd": 0.33826860000000003,
+    "inputTokens": 437023,
+    "outputTokens": 186
   },
   "usageByRole": {
     "orchestrator": {
-      "costUsd": 0.270217,
-      "inputTokens": 14,
-      "cacheReadTokens": 319080,
-      "cacheCreationTokens": 40773,
-      "outputTokens": 124,
-      "responses": 7
+      "costUsd": 0.08552560000000001,
+      "inputTokens": 10,
+      "cacheReadTokens": 295428,
+      "cacheCreationTokens": 4912,
+      "outputTokens": 92,
+      "responses": 5
     },
     "implementer": {
-      "costUsd": 0.11823890000000001,
-      "inputTokens": 8,
-      "cacheReadTokens": 53027,
-      "cacheCreationTokens": 42791,
-      "outputTokens": 64,
-      "responses": 4
+      "costUsd": 0.06425,
+      "inputTokens": 4,
+      "cacheReadTokens": 23360,
+      "cacheCreationTokens": 23700,
+      "outputTokens": 32,
+      "responses": 2
     },
     "reviewer": {
-      "costUsd": 0.173376,
+      "costUsd": 0.188493,
       "inputTokens": 8,
-      "cacheReadTokens": 59945,
-      "cacheCreationTokens": 31983,
-      "outputTokens": 72,
+      "cacheReadTokens": 54330,
+      "cacheCreationTokens": 35271,
+      "outputTokens": 62,
       "responses": 4
     }
   },
-  "startedAt": "2026-11-08T16:29:03.715Z",
-  "finishedAt": "2026-11-08T16:30:54.945Z"
+  "startedAt": "2026-11-08T16:38:25.305Z",
+  "finishedAt": "2026-11-08T16:39:13.731Z"
 }

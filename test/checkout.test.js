@@ -35,15 +35,15 @@ describe('cartTotal', () => {
   });
 
   it('refuses an unknown coupon code with an error', () => {
-    const act = () => cartTotal([{ price: 10, quantity: 1 }], { coupon: 'SAVE10' });
-    expect(act).toThrow(Error);
-    expect(act).toThrow('SAVE10');
+    const checkoutWithUnknownCoupon = () => cartTotal([{ price: 10, quantity: 1 }], { coupon: 'SAVE10' });
+    expect(checkoutWithUnknownCoupon).toThrow(Error);
+    expect(checkoutWithUnknownCoupon).toThrow('SAVE10');
   });
 
   it('refuses a coupon code that differs from SAVE5 only in case', () => {
-    const act = () => cartTotal([{ price: 10, quantity: 1 }], { coupon: 'save5' });
-    expect(act).toThrow(Error);
-    expect(act).toThrow('save5');
+    const checkoutWithLowercaseSave5 = () => cartTotal([{ price: 10, quantity: 1 }], { coupon: 'save5' });
+    expect(checkoutWithLowercaseSave5).toThrow(Error);
+    expect(checkoutWithLowercaseSave5).toThrow('save5');
   });
 
   it('ships free when the goods cost exactly $50', () => {
