@@ -1,4 +1,4 @@
-// CART-12: TC1, TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9, TC10
+// CART-12: TC1, TC2, TC3, TC4, TC5, TC6, TC7, TC8, TC9, TC10, TC11, TC12
 import { describe, expect, it } from 'vitest';
 import { cartTotal } from '../src/cart.js';
 
@@ -53,5 +53,13 @@ describe('cartTotal', () => {
 
   it('charges nothing for an empty cart', () => {
     expect(cartTotal([])).toBe(0);
+  });
+
+  it('charges shipping when SAVE5 takes the goods below $50', () => {
+    expect(cartTotal([{ price: 54.99, quantity: 1 }], { coupon: 'SAVE5' })).toBe(54.98);
+  });
+
+  it('refuses a lower-case save5 coupon code', () => {
+    expect(() => cartTotal([{ price: 10, quantity: 1 }], { coupon: 'save5' })).toThrow(/save5/);
   });
 });

@@ -7,7 +7,7 @@
     "vitest"
   ],
   "strategy": {
-    "summary": "cartTotal(items, {coupon}) in src/cart.js prices a cart: bulk 10% off at the item-count threshold, SAVE5 coupon after it (floored at $0), unknown coupons throw, $4.99 shipping below $50 of discounted goods, empty cart free. Unit tests in Vitest prove each rule and its boundaries. Reading the code shows bulkDiscount uses `> BULK_THRESHOLD`, so a cart of exactly 10 items gets no discount, against AC1; that case is kept as an expected failure and reported as a defect.",
+    "summary": "cartTotal(items, {coupon}) in src/cart.js prices a cart: bulk 10% off at the item-count threshold, SAVE5 coupon after it (floored at $0), unknown coupons throw (exact, case-sensitive match), $4.99 shipping below $50 of discounted goods, empty cart free. Unit tests in Vitest prove each rule and its boundaries. bulkDiscount uses `> BULK_THRESHOLD`, so exactly 10 items get no discount, against AC1; that case is an expected failure with a recorded defect. Revision 2 adds two cases from PR review: the coupon taking goods below $50 brings shipping back, and lower-case save5 is refused.",
     "inScope": [
       "cartTotal, bulkDiscount behaviour in src/cart.js via its exported API"
     ],
@@ -16,12 +16,10 @@
     ],
     "assumptions": [
       "Shipping still applies when a coupon brings goods to $0 on a non-empty cart (AC3: goods under $50 pay $4.99).",
-      "Coupon codes are matched exactly (case-sensitive), as the code does.",
-      "Tests go in a new file test/cart-total.test.js beside the existing test/cart.test.js, importing from ../src/cart.js like it."
+      "Coupon codes are matched exactly (case-sensitive), as the code does and the PR reviewer asked to pin.",
+      "Tests go in test/cart-total.test.js beside test/cart.test.js, importing from ../src/cart.js like it."
     ],
-    "openQuestions": [
-      "Should coupon codes be case-insensitive (e.g. 'save5')? The code refuses them; not tested."
-    ],
+    "openQuestions": [],
     "risks": [
       {
         "description": "Off-by-one at the 10-item threshold (code uses > instead of >=)",
@@ -29,14 +27,14 @@
         "mitigation": "TC1 asserts exactly 10 items across lines gets the discount (expected failure, defect recorded)."
       },
       {
-        "description": "Coupon applied before the bulk discount, or free-shipping judged before discounts",
+        "description": "Coupon applied before the bulk discount, or free shipping judged before discounts",
         "impact": "medium",
-        "mitigation": "TC4 and TC8 use amounts where the wrong order gives a different total."
+        "mitigation": "TC4, TC9 and TC11 use amounts where the wrong order gives a different total."
       },
       {
         "description": "Shipping boundary at exactly $50",
         "impact": "medium",
-        "mitigation": "TC6/TC7 test $50.00 and $49.99."
+        "mitigation": "TC7/TC8 test $50.00 and $49.99."
       }
     ],
     "acceptanceCriteria": [
@@ -75,7 +73,7 @@
         "testData": "4 + 6 items at $10",
         "targetFile": "test/cart-total.test.js",
         "automate": true,
-        "rationale": "Boundary of AC1 and quantity summing across lines; code uses > threshold."
+        "rationale": "Boundary of AC1; code uses > threshold."
       },
       {
         "id": "TC2",
@@ -109,13 +107,13 @@
         ],
         "preconditions": [],
         "steps": [
-          "cartTotal([{price:5,quantity:12}])"
+          "cartTotal([{price:5,quantity:5},{price:5,quantity:7}])"
         ],
         "expected": "54",
-        "testData": "12 x $5",
+        "testData": "5 + 7 items at $5",
         "targetFile": "test/cart-total.test.js",
         "automate": true,
-        "rationale": "Proves the discount is applied and its size."
+        "rationale": "Proves the discount, its size, and summing quantities across lines."
       },
       {
         "id": "TC4",
@@ -131,7 +129,7 @@
         "steps": [
           "cartTotal([{price:5,quantity:12}],{coupon:'SAVE5'})"
         ],
-        "expected": "53.99 (60 -> 54 -> 49, plus 4.99 shipping); coupon-before-discount would give 54.49",
+        "expected": "53.99 (60 -> 54 -> 49, plus 4.99 shipping)",
         "testData": "12 x $5, SAVE5",
         "targetFile": "test/cart-total.test.js",
         "automate": true,
@@ -235,7 +233,7 @@
         "testData": "12 x $4.50",
         "targetFile": "test/cart-total.test.js",
         "automate": true,
-        "rationale": "Threshold judged after discounts."
+        "rationale": "Threshold judged after the bulk discount."
       },
       {
         "id": "TC10",
@@ -256,6 +254,46 @@
         "targetFile": "test/cart-total.test.js",
         "automate": true,
         "rationale": "Empty cart has no shipping."
+      },
+      {
+        "id": "TC11",
+        "title": "charges shipping when SAVE5 takes the goods below $50",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{price:54.99,quantity:1}],{coupon:'SAVE5'})"
+        ],
+        "expected": "54.98 (54.99 -> 49.99 + 4.99)",
+        "testData": "1 x $54.99, SAVE5",
+        "targetFile": "test/cart-total.test.js",
+        "automate": true,
+        "rationale": "PR review F1: threshold judged after the coupon, from above $50 to below."
+      },
+      {
+        "id": "TC12",
+        "title": "refuses a lower-case save5 coupon code",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cartTotal([{price:10,quantity:1}],{coupon:'save5'})"
+        ],
+        "expected": "throws an Error whose message names save5",
+        "testData": "save5",
+        "targetFile": "test/cart-total.test.js",
+        "automate": true,
+        "rationale": "PR review F1: pins case-sensitive coupon matching."
       }
     ],
     "environmentNotes": "Pure unit tests; no services. Run with npm test (vitest run)."
@@ -263,73 +301,85 @@
   "results": [
     {
       "framework": "vitest",
-      "command": "vitest run test/cart-total.test.js --reporter=json --outputFile=/data/workspaces/ed61491e-0e7f-4e0c-b889-24366bc88196/reports/attempt-1/vitest-0/vitest.json --coverage.enabled=false",
+      "command": "vitest run test/cart-total.test.js --reporter=json --outputFile=/data/workspaces/f40b4cb0-7994-4ade-8753-6166c09a2099/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
       "exitCode": 0,
-      "durationMs": 404,
-      "passed": 10,
+      "durationMs": 719,
+      "passed": 12,
       "failed": 0,
       "skipped": 0,
-      "total": 10,
+      "total": 12,
       "cases": [
         {
           "title": "cartTotal gives 10% off a cart of exactly 10 items spread across lines",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 5.5121480000000105
+          "durationMs": 10.747647
         },
         {
           "title": "cartTotal gives no bulk discount to a cart of 9 items",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 0.22373099999998658
+          "durationMs": 0.2882939999999792
         },
         {
           "title": "cartTotal gives 10% off a cart of more than 10 items",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 0.15100099999999372
+          "durationMs": 0.1325429999999983
         },
         {
           "title": "cartTotal takes SAVE5 off after the bulk discount",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 0.15454400000000135
+          "durationMs": 0.1358759999999961
         },
         {
           "title": "cartTotal never prices the goods below $0 with SAVE5",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 0.13599700000000325
+          "durationMs": 0.15100100000000793
         },
         {
           "title": "cartTotal refuses an unknown coupon code with an error",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 0.5246070000000032
+          "durationMs": 0.4766700000000128
         },
         {
           "title": "cartTotal ships free when the discounted goods cost exactly $50",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 0.13787299999999902
+          "durationMs": 0.1052090000000021
         },
         {
           "title": "cartTotal charges $4.99 shipping when the goods cost $49.99",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 0.15058399999999494
+          "durationMs": 0.1148759999999811
         },
         {
           "title": "cartTotal charges shipping when the bulk discount takes the goods below $50",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 0.1334540000000004
+          "durationMs": 0.12079200000002288
         },
         {
           "title": "cartTotal charges nothing for an empty cart",
           "file": "test/cart-total.test.js",
           "status": "passed",
-          "durationMs": 0.14554099999999437
+          "durationMs": 0.17108500000000504
+        },
+        {
+          "title": "cartTotal charges shipping when SAVE5 takes the goods below $50",
+          "file": "test/cart-total.test.js",
+          "status": "passed",
+          "durationMs": 0.0902510000000234
+        },
+        {
+          "title": "cartTotal refuses a lower-case save5 coupon code",
+          "file": "test/cart-total.test.js",
+          "status": "passed",
+          "durationMs": 0.1503759999999943
         }
       ]
     }
@@ -337,29 +387,28 @@
   "files": [
     {
       "path": "test/cart-total.test.js",
-      "status": "added"
-    }
-  ],
-  "defects": [
+      "status": "modified"
+    },
     {
-      "title": "Cart of exactly 10 items gets no bulk discount",
-      "testCaseId": "TC1",
-      "file": "test/cart-total.test.js",
-      "description": "AC1: 10 or more items get 10% off. src/cart.js bulkDiscount uses `itemCount(items) > BULK_THRESHOLD` (should be >=), so a 10-item cart (4+6 at $10) is charged 100 instead of 90.",
-      "evidence": "cartTotal([{price:10,quantity:4},{price:10,quantity:6}]) returns 100; test marked it.fails passes, i.e. the toBe(90) assertion fails."
+      "path": "pnpm-lock.yaml",
+      "status": "added"
+    },
+    {
+      "path": "yarn.lock",
+      "status": "added"
     }
   ],
   "review": [
     {
-      "file": "test/cart-total.test.js",
-      "line": 8,
-      "standard": "Assert the one outcome the app produces / List a criterion on a case only when that case's assertions would fail if the criterion weren't met (AC1: quantities added up across lines)",
-      "severity": "blocking",
-      "summary": "The only test with more than one line is the it.fails TC1. it.fails passes on any failure, so no passing test shows that itemCount adds up quantities across lines; every other bulk case (TC2, TC3, TC4, TC9) uses a single line.",
-      "failureScenario": "Say itemCount regresses to counting only one line's quantity, for example `items[0]?.quantity ?? 0` or `Math.max(...quantities)`. TC3, TC4 and TC9 (one line of 12) still get the discount and pass. TC2 (one line of 9) passes. TC1 ({4},{6}) still returns 100 rather than 90, so it.fails stays green. The suite passes while AC1's 'adding up each line's quantity' is broken. The same happens if cartTotal throws, say a TypeError from a refactor: TC1 'fails' and it.fails passes. Fix: add a passing multi-line case above the threshold that the current code discounts, e.g. [{price:10,quantity:5},{price:10,quantity:6}] -> 99 (110 - 11, free shipping). That way, summing across lines is checked by a test that is not marked expected-to-fail.",
-      "id": "R1.1",
-      "round": 1,
-      "status": "resolved"
+      "file": "pnpm-lock.yaml",
+      "line": 1,
+      "standard": "Repo-wide files you may change / match the repo's conventions (the repo uses npm: CI runs `npm install` and `npm test`)",
+      "severity": "follow_up",
+      "summary": "The change adds empty pnpm-lock.yaml and yarn.lock files to an npm project that the ticket's tests don't need.",
+      "failureScenario": "The repo installs with npm (.github/workflows/ci.yml runs `npm install --no-audit --no-fund`; there's no packageManager field). If the PR merges with an empty pnpm-lock.yaml and an empty yarn.lock (same problem at yarn.lock line 1), tools that pick a package manager from the lockfile (corepack-aware scripts, `ni`, Renovate, hosting platforms) will choose pnpm or yarn and get an empty or invalid lockfile. For example, `pnpm install --frozen-lockfile` fails, or the tool resolves fresh versions while ignoring npm. The tests prove the same either way, so this is a cleanup. Delete both files from the change.",
+      "id": "R2.1",
+      "round": 2,
+      "status": "follow_up"
     }
   ],
   "flow": {
@@ -368,59 +417,90 @@
       "run_tests_scratch",
       "self_check",
       "run_tests",
-      "record_defect",
-      "review_brief",
-      "submit_review",
-      "run_tests_scratch",
-      "self_check",
-      "run_tests",
-      "review_brief",
-      "submit_review",
       "run_checks",
-      "self_check",
-      "publish"
+      "review_brief",
+      "submit_review",
+      "update_pr",
+      "review_brief",
+      "update_pr",
+      "review_brief",
+      "submit_review",
+      "update_pr"
     ],
-    "refusals": [],
-    "refusalsByCategory": {},
+    "refusals": [
+      {
+        "tool": "update_pr",
+        "category": "review",
+        "reason": "The independent review must check what changed since the last pass before the pull request is opened: start a reviewer subagent (the Agent tool, subagent_type \"reviewer\"), saying in its prompt what t…",
+        "stage": "review"
+      },
+      {
+        "tool": "update_pr",
+        "category": "review",
+        "reason": "The independent review must check what changed since the last pass before the pull request is opened: start a reviewer subagent (the Agent tool, subagent_type \"reviewer\"), saying in its prompt what t…",
+        "stage": "review"
+      }
+    ],
+    "refusalsByCategory": {
+      "review": 2
+    },
     "optionalTools": {
-      "run_tests_scratch": 2,
-      "self_check": 3,
-      "record_defect": 1,
+      "run_tests_scratch": 1,
+      "self_check": 1,
       "run_checks": 1
     },
     "subagentCalls": 4
   },
+  "followUp": {
+    "parentRunId": "ed61491e-0e7f-4e0c-b889-24366bc88196",
+    "pr": {
+      "number": 50,
+      "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/pull/50",
+      "branch": "testforge/cart-12-bulk-discount-coupons-and-free-v78r"
+    },
+    "feedback": [
+      {
+        "id": "F1",
+        "kind": "review",
+        "author": "gregoryduckworth",
+        "body": "Thanks, this mostly looks good. Three points before it can go in:\n\n1. Shipping coming back after the coupon isn't covered. The $50 case lands exactly on the threshold, but nothing checks that SAVE5 can take the goods from above $50 to below it, so shipping is charged again (for example, one $54.99 item with SAVE5 should cost $54.98). Please add that case.\n2. AC2 says any other coupon code is refused, but nothing pins whether the match is case-sensitive. Please add a case showing that a lower-case `save5` is refused.\n3. Question, no change needed unless you think one is: why `it.fails` for the exactly-10-items defect rather than leaving a plain failing test?",
+        "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/pull/50#pullrequestreview-5842314166",
+        "at": "2026-11-10T13:07:22Z"
+      }
+    ],
+    "fetchedAt": "2026-11-10T13:07:41.369Z"
+  },
   "usage": {
-    "costUsd": 0.6922557999999999,
-    "inputTokens": 787384,
-    "outputTokens": 427
+    "costUsd": 0.8272933999999998,
+    "inputTokens": 794664,
+    "outputTokens": 350
   },
   "usageByRole": {
     "orchestrator": {
-      "costUsd": 0.22776519999999997,
-      "inputTokens": 44,
-      "cacheReadTokens": 367171,
-      "cacheCreationTokens": 30131,
-      "outputTokens": 175,
-      "responses": 11
+      "costUsd": 0.36941159999999995,
+      "inputTokens": 18,
+      "cacheReadTokens": 414673,
+      "cacheCreationTokens": 56829,
+      "outputTokens": 113,
+      "responses": 9
     },
     "implementer": {
-      "costUsd": 0.1065774,
-      "inputTokens": 10,
-      "cacheReadTokens": 80462,
-      "cacheCreationTokens": 35898,
-      "outputTokens": 72,
-      "responses": 5
+      "costUsd": 0.07406700000000001,
+      "inputTokens": 6,
+      "cacheReadTokens": 48400,
+      "cacheCreationTokens": 25526,
+      "outputTokens": 56,
+      "responses": 3
     },
     "reviewer": {
-      "costUsd": 0.35791319999999993,
+      "costUsd": 0.38381479999999996,
       "inputTokens": 22,
-      "cacheReadTokens": 211251,
-      "cacheCreationTokens": 62395,
-      "outputTokens": 180,
+      "cacheReadTokens": 180384,
+      "cacheCreationTokens": 68806,
+      "outputTokens": 181,
       "responses": 11
     }
   },
-  "startedAt": "2026-11-09T11:40:50.203Z",
-  "finishedAt": "2026-11-09T11:43:28.144Z"
+  "startedAt": "2026-11-10T13:07:39.072Z",
+  "finishedAt": "2026-11-10T13:12:14.222Z"
 }
