@@ -1,0 +1,534 @@
+{
+  "status": "succeeded",
+  "ticketKey": "API-31",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/api-31-search-and-page-through-produc-pncb",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "GET /products filters the in-memory catalogue (120 products, 8 names × 15) by case-insensitive name substring `q`, pages with `limit` (default 20, capped at MAX_LIMIT=50) and `offset`, returns { total, items }, and refuses non-whole limit/offset or limit < 1 with 400. Tests start the real app in-process and call it over HTTP to prove filtering, paging, the cap and the refusals.",
+    "inScope": [
+      "GET /products query handling: q, limit, offset, total, cap, 400 refusals"
+    ],
+    "outOfScope": [
+      "GET /products/:id and POST /orders (not in the ticket)",
+      "Search box UI (no UI in this repo)"
+    ],
+    "assumptions": [
+      "The limit cap is 50 (MAX_LIMIT in src/app.js), not the README's 100: a person confirmed this in earlier runs on API-31 (approved repo note); tests import MAX_LIMIT.",
+      "The real app runs in-process on port 0 for every test; nothing is faked. The catalogue is fixed in src/catalogue.js and GET /products does not change it.",
+      "Server start/stop moves into a shared helper test/helpers/server.js used by both test/products.test.js and the new spec."
+    ],
+    "openQuestions": [
+      "README.md says limit goes up to 100 while the code caps at 50; the README should be updated (follow-up)."
+    ],
+    "risks": [
+      {
+        "description": "Search becomes case-sensitive or prefix-only, so the shop's search box misses products",
+        "impact": "high",
+        "mitigation": "TC1 uses mixed-case q, TC2 a substring from the middle of a name"
+      },
+      {
+        "description": "total reports the page size instead of all matches, breaking pagination",
+        "impact": "high",
+        "mitigation": "TC5 asserts total 15 while the page has 5 items"
+      },
+      {
+        "description": "Uncapped limit lets clients pull the whole catalogue",
+        "impact": "medium",
+        "mitigation": "TC7 asks for more than MAX_LIMIT and expects exactly MAX_LIMIT items"
+      },
+      {
+        "description": "Malformed paging values accepted silently (e.g. 2.5 parsed as 2)",
+        "impact": "medium",
+        "mitigation": "TC9–TC11 one row per invalid value"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "q matches products whose name contains it, case-insensitively; without q every product is listed.",
+        "derived": false
+      },
+      {
+        "id": "AC2",
+        "text": "Results are paged with limit and offset, the response gives the total number of matches, and limits above MAX_LIMIT (50) are capped.",
+        "derived": false
+      },
+      {
+        "id": "AC3",
+        "text": "A limit or offset that isn't a whole number, or a limit below 1, is refused with 400.",
+        "derived": false
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "matches q against product names in any case",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "app started in-process"
+        ],
+        "steps": [
+          "GET /products?q=kEtTlE&limit=50"
+        ],
+        "expected": "200, total 15, item names exactly 'Kettle 1'..'Kettle 15' in id order",
+        "testData": "q=kEtTlE",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "Core search rule and case-insensitivity"
+      },
+      {
+        "id": "TC2",
+        "title": "matches q anywhere inside the name",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products?q=frot&limit=50"
+        ],
+        "expected": "200, total 15, names exactly 'Milk frother 1'..'Milk frother 15'",
+        "testData": "q=frot",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "Guards against prefix-only matching"
+      },
+      {
+        "id": "TC3",
+        "title": "lists every product when q is absent",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products"
+        ],
+        "expected": "200, total 120, items are ids 1..DEFAULT_LIMIT",
+        "testData": "",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "No-filter listing and default page"
+      },
+      {
+        "id": "TC4",
+        "title": "returns no items and total 0 when nothing matches q",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products?q=zzz-no-match"
+        ],
+        "expected": "200, { total: 0, items: [] }",
+        "testData": "",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "Filter actually excludes"
+      },
+      {
+        "id": "TC5",
+        "title": "returns the requested page with the total of all matches",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products?q=kettle&limit=5&offset=5"
+        ],
+        "expected": "200, total 15, names exactly 'Kettle 6'..'Kettle 10'",
+        "testData": "",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "limit, offset and total together"
+      },
+      {
+        "id": "TC6",
+        "title": "returns an empty page with the total when offset is past the matches",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products?q=kettle&offset=15"
+        ],
+        "expected": "200, total 15, items []",
+        "testData": "",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "Boundary at end of results"
+      },
+      {
+        "id": "TC7",
+        "title": "caps limit above MAX_LIMIT at MAX_LIMIT items",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products?limit=<MAX_LIMIT+1>"
+        ],
+        "expected": "200, total 120, items are ids 1..MAX_LIMIT",
+        "testData": "MAX_LIMIT imported from src/app.js",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "Cap boundary"
+      },
+      {
+        "id": "TC8",
+        "title": "accepts limit=1 and returns one item",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products?limit=1"
+        ],
+        "expected": "200, total 120, items is [id 1]",
+        "testData": "",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "Lower accepted boundary beside TC11"
+      },
+      {
+        "id": "TC9",
+        "title": "refuses a limit that is not a whole number with 400",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products?limit=<value> for each of abc, 2.5, -3, empty (it.each, value in title)"
+        ],
+        "expected": "400 with a JSON error body",
+        "testData": "abc, 2.5, -3, ''",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "Validation of limit"
+      },
+      {
+        "id": "TC10",
+        "title": "refuses an offset that is not a whole number with 400",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products?offset=<value> for each of abc, 1.5, -1 (it.each, value in title)"
+        ],
+        "expected": "400 with a JSON error body",
+        "testData": "abc, 1.5, -1",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "Validation of offset"
+      },
+      {
+        "id": "TC11",
+        "title": "refuses limit=0 with 400",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "app started"
+        ],
+        "steps": [
+          "GET /products?limit=0"
+        ],
+        "expected": "400 with a JSON error body",
+        "testData": "",
+        "targetFile": "test/products-search.test.js",
+        "automate": true,
+        "rationale": "limit below 1 boundary"
+      }
+    ],
+    "environmentNotes": "No external services; tests start createApp() on port 0 in-process via test/helpers/server.js. Run with npm test."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/products.test.js test/products-search.test.js --reporter=json --outputFile=/data/workspaces/8b1f9a74-9a45-4b22-a017-cb444cdb0c4d/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 443,
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "total": 18,
+      "cases": [
+        {
+          "title": "GET /products search matches q against product names in any case",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 22.568937000000005
+        },
+        {
+          "title": "GET /products search matches q anywhere inside the name",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 3.059832
+        },
+        {
+          "title": "GET /products search lists every product when q is absent",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 1.4586460000000159
+        },
+        {
+          "title": "GET /products search returns no items and total 0 when nothing matches q",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 1.3921469999999943
+        },
+        {
+          "title": "GET /products paging returns the requested page with the total of all matches",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 1.1193600000000004
+        },
+        {
+          "title": "GET /products paging returns an empty page with the total when offset is past the matches",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 6.236372000000017
+        },
+        {
+          "title": "GET /products paging caps limit above MAX_LIMIT at MAX_LIMIT items",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 1.3589400000000182
+        },
+        {
+          "title": "GET /products paging accepts limit=1 and returns one item",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 0.9814030000000002
+        },
+        {
+          "title": "GET /products refusals refuses a limit that is not a whole number with 400 (limit=abc)",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 2.4783410000000003
+        },
+        {
+          "title": "GET /products refusals refuses a limit that is not a whole number with 400 (limit=2.5)",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 1.615269999999981
+        },
+        {
+          "title": "GET /products refusals refuses a limit that is not a whole number with 400 (limit=-3)",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 0.8363219999999956
+        },
+        {
+          "title": "GET /products refusals refuses a limit that is not a whole number with 400 (limit=)",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 0.6607400000000041
+        },
+        {
+          "title": "GET /products refusals refuses an offset that is not a whole number with 400 (offset=abc)",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 0.45157699999998613
+        },
+        {
+          "title": "GET /products refusals refuses an offset that is not a whole number with 400 (offset=1.5)",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 0.403160999999983
+        },
+        {
+          "title": "GET /products refusals refuses an offset that is not a whole number with 400 (offset=-1)",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 0.38611899999997945
+        },
+        {
+          "title": "GET /products refusals refuses limit=0 with 400",
+          "file": "test/products-search.test.js",
+          "status": "passed",
+          "durationMs": 0.35999499999999784
+        },
+        {
+          "title": "GET /products/:id returns the product",
+          "file": "test/products.test.js",
+          "status": "passed",
+          "durationMs": 24.048500000000004
+        },
+        {
+          "title": "GET /products/:id is 404 for an unknown id",
+          "file": "test/products.test.js",
+          "status": "passed",
+          "durationMs": 4.343897999999996
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "test/products.test.js",
+      "status": "modified"
+    },
+    {
+      "path": "test/helpers/server.js",
+      "status": "added"
+    },
+    {
+      "path": "test/products-search.test.js",
+      "status": "added"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "run_checks",
+      "run_tests",
+      "self_check",
+      "self_check",
+      "self_check",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "test/products.test.js written before testforge:unit were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_checks": 1,
+      "self_check": 3
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-6a078419",
+      "m-3ead81ca",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-e7c33c93",
+      "m-02bf91ac",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b",
+      "m-e5590199",
+      "m-7450f8bf",
+      "m-b728fa0b"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.6646903,
+    "inputTokens": 773779,
+    "outputTokens": 1818
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.3574031999999999,
+      "inputTokens": 92,
+      "cacheReadTokens": 592226,
+      "cacheCreationTokens": 46798,
+      "outputTokens": 230,
+      "responses": 13
+    }
+  },
+  "startedAt": "2026-11-13T12:38:58.131Z",
+  "finishedAt": "2026-11-13T12:40:56.649Z"
+}
