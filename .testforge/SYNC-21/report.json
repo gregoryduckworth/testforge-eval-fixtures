@@ -1,0 +1,791 @@
+{
+  "status": "succeeded",
+  "workflow": "flaky",
+  "ticketKey": "SYNC-21",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/sync-21-flaky-tests-on-main-a73m",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "Three tests named in SYNC-21 are flaky (a 10-run shuffled probe confirmed all three). retry's back-off test sleeps a fixed 40ms while the code waits 20–59ms of random back-off. The subscribers test fails depending on order, because another test leaves handlers in the registry that the whole process shares. saveAll's order test exposes an application defect: saveAll pushes ids in the order the saves finish, not the order of the records. Fix the first two in the test code. Quarantine the third with a comment, record the defect and file an issue.",
+    "inScope": [
+      "test/retry.test.js 'retries a failed call after a back-off'",
+      "test/subscribers.test.js order dependence (subscriptions leaked by 'tells every handler subscribed to the topic')",
+      "test/bulk.test.js saveAll order test: quarantine + defect + issue"
+    ],
+    "outOfScope": [
+      "Changing src/ (application code)",
+      "CI workflow changes"
+    ],
+    "assumptions": [
+      "CI runs `npx vitest run --sequence.shuffle` (.github/workflows/ci.yml), so test order is random on every run.",
+      "src/bulk.js's doc says the ids come back in the order of the records, so that is the intended contract and saveAll breaks it.",
+      "Existing tests change only as far as needed: every assertion and test title stays."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "If fake timers stay installed after the retry test, later tests that use real setTimeout (the records client) could hang.",
+        "impact": "medium",
+        "mitigation": "Call vi.useRealTimers() in an afterEach in retry.test.js."
+      },
+      {
+        "description": "While saveAll's order test is quarantined, an order regression in saveAll is not caught.",
+        "impact": "medium",
+        "mitigation": "Record the defect and file an issue so the app gets fixed and the test un-skipped."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "retry calls a failed task again after the back-off delay and resolves with the later result, deterministically",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "A handler that unsubscribes is not called on publish, and publish reports 0 handlers reached, whatever order the tests run in",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "saveAll resolves with ids in the order of the records passed in",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "retries a failed call after a back-off",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "vi.useFakeTimers() in this test, real timers restored in afterEach"
+        ],
+        "steps": [
+          "Task rejects once, then resolves 'ok'",
+          "Call retry(task, { random: () => 0 }) so the delay is exactly retryDelay(0) = 20ms",
+          "Advance the fake clock by that delay with vi.advanceTimersByTimeAsync",
+          "Assert the task was called 2 times and the result resolves 'ok'"
+        ],
+        "expected": "The task is called twice and the result resolves to 'ok' in every run.",
+        "testData": "",
+        "targetFile": "test/retry.test.js",
+        "automate": true,
+        "rationale": "Cause: the test sleeps a fixed 40ms on the real clock, but retry waits retryDelay(0) = 20ms plus up to 39ms of Math.random jitter (src/retry.js). When the jitter pushes the delay past 40ms, the second call hasn't happened yet ('called 1 times', 7 of 10 probe runs). Fix: fake timers and a fixed random, then advance by exactly the computed back-off. The assertions stay the same."
+      },
+      {
+        "id": "TC2",
+        "title": "stops telling a handler once it unsubscribes",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Subscribe a handler to 'records', then call the returned stop()",
+          "Publish on 'records'"
+        ],
+        "expected": "publish returns 0 and the handler is not called, in any shuffled order.",
+        "testData": "",
+        "targetFile": "test/subscribers.test.js",
+        "automate": true,
+        "rationale": "Cause: order dependence. src/subscribers.js keeps one handler Map for the whole process. 'tells every handler subscribed to the topic' subscribes two handlers to 'records' and never unsubscribes them. When it runs first, publish returns 2 ('expected 2 to be +0', 5 of 10 shuffled probe runs). Fix: every test that subscribes registers its stop() function for an afterEach, so no test leaves handlers behind."
+      },
+      {
+        "id": "TC3",
+        "title": "resolves with the ids in the order of the records",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "saveAll two records through createRecordsClient()",
+          "Fetch each id and map to names"
+        ],
+        "expected": "['first', 'second']. The app currently fails this, so the test is quarantined with it.skip and a comment naming the cause.",
+        "testData": "",
+        "targetFile": "test/bulk.test.js",
+        "automate": true,
+        "rationale": "Cause in application code: saveAll (src/bulk.js) does ids.push(await client.save(record)) inside Promise.all, so ids are in the order the saves finish. The client's latency is random, so the order is too ('[second, first]', 4 of 10 probe runs). The doc promises the order of the records. A test change can't fix this, so the test is quarantined, the defect recorded and an issue filed."
+      }
+    ],
+    "environmentNotes": "No services needed; plain vitest unit tests. CI shuffles test order."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/bulk.test.js test/retry.test.js test/subscribers.test.js --reporter=json --outputFile=/data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 454,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 1,
+      "total": 11,
+      "cases": [
+        {
+          "title": "saveAll resolves with the ids in the order of the records",
+          "file": "test/bulk.test.js",
+          "status": "skipped"
+        },
+        {
+          "title": "saveAll saves nothing for no records",
+          "file": "test/bulk.test.js",
+          "status": "passed",
+          "durationMs": 1.6930459999999954
+        },
+        {
+          "title": "saveEach resolves with the ids in the order of the records",
+          "file": "test/bulk.test.js",
+          "status": "passed",
+          "durationMs": 12.776167999999998
+        },
+        {
+          "title": "retryDelay doubles the base delay for each earlier retry",
+          "file": "test/retry.test.js",
+          "status": "passed",
+          "durationMs": 2.1170270000000073
+        },
+        {
+          "title": "retryDelay adds at most the jitter on top",
+          "file": "test/retry.test.js",
+          "status": "passed",
+          "durationMs": 0.1931769999999915
+        },
+        {
+          "title": "retry resolves with the first result when the call succeeds",
+          "file": "test/retry.test.js",
+          "status": "passed",
+          "durationMs": 1.7107980000000111
+        },
+        {
+          "title": "retry retries a failed call after a back-off",
+          "file": "test/retry.test.js",
+          "status": "passed",
+          "durationMs": 1.9074329999999975
+        },
+        {
+          "title": "retry rejects with the last error once every attempt has failed",
+          "file": "test/retry.test.js",
+          "status": "passed",
+          "durationMs": 2.0497330000000034
+        },
+        {
+          "title": "subscribers stops telling a handler once it unsubscribes",
+          "file": "test/subscribers.test.js",
+          "status": "passed",
+          "durationMs": 1.7634249999999838
+        },
+        {
+          "title": "subscribers tells every handler subscribed to the topic",
+          "file": "test/subscribers.test.js",
+          "status": "passed",
+          "durationMs": 0.7710820000000069
+        },
+        {
+          "title": "subscribers tells nobody about a topic no handler follows",
+          "file": "test/subscribers.test.js",
+          "status": "passed",
+          "durationMs": 0.17696699999999055
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "test/bulk.test.js",
+      "status": "modified"
+    },
+    {
+      "path": "test/retry.test.js",
+      "status": "modified"
+    },
+    {
+      "path": "test/subscribers.test.js",
+      "status": "modified"
+    }
+  ],
+  "defects": [
+    {
+      "title": "saveAll returns ids in completion order, not the order of the records",
+      "testCaseId": "TC3",
+      "file": "test/bulk.test.js",
+      "description": "AC3: src/bulk.js documents that saveAll resolves with ids in the order of `records`, so callers can pair them by index. It runs `ids.push(await client.save(record))` inside Promise.all, so each id is pushed when its save finishes. With variable latency the order comes back shuffled. Expected ['first','second'] when the saved ids are read back; actual is sometimes ['second','first']. A fix would be `return Promise.all(records.map((r) => client.save(r)))`.",
+      "evidence": "probe_stability, 10 shuffled runs: 'saveAll resolves with the ids in the order of the records' passed 6 of 10 runs. The failures read: AssertionError: expected [ 'second', 'first' ] to deeply equal [ 'first', 'second' ] at test/bulk.test.js:10."
+    }
+  ],
+  "issues": [
+    {
+      "board": "github-issues",
+      "key": "gregoryduckworth/testforge-eval-fixtures#74",
+      "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/issues/74",
+      "title": "saveAll returns ids in completion order instead of the order of the records",
+      "action": "commented",
+      "fingerprint": "flaky-43de58b2849d3e60",
+      "file": "test/bulk.test.js",
+      "caseTitle": "resolves with the ids in the order of the records"
+    }
+  ],
+  "stability": [
+    {
+      "files": [
+        {
+          "path": "test/retry.test.js",
+          "framework": "vitest"
+        },
+        {
+          "path": "test/subscribers.test.js",
+          "framework": "vitest"
+        },
+        {
+          "path": "test/bulk.test.js",
+          "framework": "vitest"
+        }
+      ],
+      "repeats": 10,
+      "shuffle": true,
+      "groups": [
+        {
+          "framework": "vitest",
+          "mode": "loop",
+          "repeats": 10,
+          "shuffled": true,
+          "command": "vitest run test/retry.test.js test/subscribers.test.js test/bulk.test.js --reporter=json --outputFile=/data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/reports/probe-1/vitest-0/run-1/vitest.json --coverage.enabled=false --retry=0 --sequence.shuffle --sequence.seed=1492399778",
+          "errors": []
+        }
+      ],
+      "cases": [
+        {
+          "framework": "vitest",
+          "title": "retry retries a failed call after a back-off",
+          "file": "test/retry.test.js",
+          "verdict": "flaky",
+          "runs": 10,
+          "passes": 3,
+          "failures": 7,
+          "passRate": 0.3,
+          "duration": {
+            "minMs": 41.431196,
+            "medianMs": 43,
+            "maxMs": 44.517775
+          },
+          "failureMessages": [
+            {
+              "message": "AssertionError: expected \"vi.fn()\" to be called 2 times, but got 1 times\n    at /data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/repo/test/retry.test.js:28:18\n    at async file:///data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:2864:20",
+              "count": 7
+            }
+          ],
+          "failedSeeds": [
+            1492399778,
+            2040347101,
+            523722394,
+            1441783376,
+            96488344,
+            89306640,
+            586753592
+          ]
+        },
+        {
+          "framework": "vitest",
+          "title": "subscribers stops telling a handler once it unsubscribes",
+          "file": "test/subscribers.test.js",
+          "verdict": "flaky",
+          "runs": 10,
+          "passes": 5,
+          "failures": 5,
+          "passRate": 0.5,
+          "duration": {
+            "minMs": 0.5643700000000109,
+            "medianMs": 3,
+            "maxMs": 4.155332000000001
+          },
+          "failureMessages": [
+            {
+              "message": "AssertionError: expected 2 to be +0 // Object.is equality\n    at /data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/repo/test/subscribers.test.js:9:49\n    at file:///data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:1695:35\n    at file:///data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:2864:26\n    at file:///data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:3402:20\n    at new Promise (<anonymous>)\n    at runWithCancel (fil…",
+              "count": 5
+            }
+          ],
+          "failedSeeds": [
+            316550315,
+            432901025,
+            1779262370,
+            89306640,
+            586753592
+          ]
+        },
+        {
+          "framework": "vitest",
+          "title": "saveAll resolves with the ids in the order of the records",
+          "file": "test/bulk.test.js",
+          "verdict": "flaky",
+          "runs": 10,
+          "passes": 6,
+          "failures": 4,
+          "passRate": 0.6,
+          "duration": {
+            "minMs": 5.542043000000007,
+            "medianMs": 16,
+            "maxMs": 21.839256000000006
+          },
+          "failureMessages": [
+            {
+              "message": "AssertionError: expected [ 'second', 'first' ] to deeply equal [ 'first', 'second' ]\n    at /data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/repo/test/bulk.test.js:10:38\n    at async file:///data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:2864:20",
+              "count": 4
+            }
+          ],
+          "failedSeeds": [
+            2040347101,
+            523722394,
+            89306640,
+            586753592
+          ]
+        },
+        {
+          "framework": "vitest",
+          "title": "saveAll saves nothing for no records",
+          "file": "test/bulk.test.js",
+          "verdict": "stable",
+          "runs": 10,
+          "passes": 10,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.48124599999999873,
+            "medianMs": 1,
+            "maxMs": 0.5837450000000075
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "saveEach resolves with the ids in the order of the records",
+          "file": "test/bulk.test.js",
+          "verdict": "stable",
+          "runs": 10,
+          "passes": 10,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 10.311227000000002,
+            "medianMs": 17,
+            "maxMs": 24.66557999999999
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "retry rejects with the last error once every attempt has failed",
+          "file": "test/retry.test.js",
+          "verdict": "stable",
+          "runs": 10,
+          "passes": 10,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 1.3481990000000081,
+            "medianMs": 2,
+            "maxMs": 3.4830579999999998
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "retry resolves with the first result when the call succeeds",
+          "file": "test/retry.test.js",
+          "verdict": "stable",
+          "runs": 10,
+          "passes": 10,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.17787300000000528,
+            "medianMs": 0,
+            "maxMs": 1.8893170000000055
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "retryDelay adds at most the jitter on top",
+          "file": "test/retry.test.js",
+          "verdict": "stable",
+          "runs": 10,
+          "passes": 10,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.11966600000000938,
+            "medianMs": 0,
+            "maxMs": 0.17853999999999814
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "retryDelay doubles the base delay for each earlier retry",
+          "file": "test/retry.test.js",
+          "verdict": "stable",
+          "runs": 10,
+          "passes": 10,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.1453730000000064,
+            "medianMs": 0,
+            "maxMs": 1.2498209999999972
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "subscribers tells every handler subscribed to the topic",
+          "file": "test/subscribers.test.js",
+          "verdict": "stable",
+          "runs": 10,
+          "passes": 10,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.6628690000000006,
+            "medianMs": 1,
+            "maxMs": 2.064895000000007
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "subscribers tells nobody about a topic no handler follows",
+          "file": "test/subscribers.test.js",
+          "verdict": "stable",
+          "runs": 10,
+          "passes": 10,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.11837400000000287,
+            "medianMs": 0,
+            "maxMs": 1.0318259999999952
+          },
+          "failureMessages": []
+        }
+      ],
+      "durationMs": 3380
+    },
+    {
+      "files": [
+        {
+          "path": "test/retry.test.js",
+          "framework": "vitest"
+        },
+        {
+          "path": "test/subscribers.test.js",
+          "framework": "vitest"
+        },
+        {
+          "path": "test/bulk.test.js",
+          "framework": "vitest"
+        }
+      ],
+      "repeats": 20,
+      "shuffle": true,
+      "groups": [
+        {
+          "framework": "vitest",
+          "mode": "loop",
+          "repeats": 20,
+          "shuffled": true,
+          "command": "vitest run test/retry.test.js test/subscribers.test.js test/bulk.test.js --reporter=json --outputFile=/data/workspaces/46aac18b-6227-42a4-9ffd-62be3be702c8/reports/probe-2/vitest-0/run-1/vitest.json --coverage.enabled=false --retry=0 --sequence.shuffle --sequence.seed=1809650793",
+          "errors": []
+        }
+      ],
+      "cases": [
+        {
+          "framework": "vitest",
+          "title": "saveAll saves nothing for no records",
+          "file": "test/bulk.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.4809849999999898,
+            "medianMs": 1,
+            "maxMs": 2.136453000000003
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "saveEach resolves with the ids in the order of the records",
+          "file": "test/bulk.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 8.294533999999999,
+            "medianMs": 18,
+            "maxMs": 30.079730000000012
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "retry rejects with the last error once every attempt has failed",
+          "file": "test/retry.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 1.9791489999999925,
+            "medianMs": 3,
+            "maxMs": 4.419072999999997
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "retry resolves with the first result when the call succeeds",
+          "file": "test/retry.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.2229289999999935,
+            "medianMs": 0,
+            "maxMs": 2.0638199999999927
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "retry retries a failed call after a back-off",
+          "file": "test/retry.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 1.5676270000000017,
+            "medianMs": 2,
+            "maxMs": 5.528435000000002
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "retryDelay adds at most the jitter on top",
+          "file": "test/retry.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.1104219999999998,
+            "medianMs": 0,
+            "maxMs": 1.492038000000008
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "retryDelay doubles the base delay for each earlier retry",
+          "file": "test/retry.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.13017399999999668,
+            "medianMs": 0,
+            "maxMs": 1.2336939999999998
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "subscribers stops telling a handler once it unsubscribes",
+          "file": "test/subscribers.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.26459799999999234,
+            "medianMs": 1,
+            "maxMs": 1.8736049999999977
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "subscribers tells every handler subscribed to the topic",
+          "file": "test/subscribers.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.6773290000000003,
+            "medianMs": 1,
+            "maxMs": 2.2419960000000003
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "subscribers tells nobody about a topic no handler follows",
+          "file": "test/subscribers.test.js",
+          "verdict": "stable",
+          "runs": 20,
+          "passes": 20,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.15084199999999726,
+            "medianMs": 0,
+            "maxMs": 1.6235070000000036
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "saveAll resolves with the ids in the order of the records",
+          "file": "test/bulk.test.js",
+          "verdict": "skipped",
+          "runs": 0,
+          "passes": 0,
+          "failures": 0,
+          "failureMessages": []
+        }
+      ],
+      "durationMs": 5987
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "probe_stability",
+      "submit_strategy",
+      "submit_strategy",
+      "record_defect",
+      "run_tests",
+      "probe_stability",
+      "run_checks",
+      "self_check",
+      "file_issue",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "submit_strategy",
+        "category": "standards",
+        "reason": "strategy submitted before testforge:refactor were loaded",
+        "stage": "strategy"
+      },
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "test/retry.test.js written before testforge:unit, testforge:vitest, testforge:implementation were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 2
+    },
+    "optionalTools": {
+      "recall": 1,
+      "probe_stability": 2,
+      "record_defect": 1,
+      "run_checks": 1,
+      "self_check": 1,
+      "file_issue": 1
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.7831475,
+    "inputTokens": 934074,
+    "outputTokens": 3021
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.4315428,
+      "inputTokens": 96,
+      "cacheReadTokens": 738894,
+      "cacheCreationTokens": 55388,
+      "outputTokens": 322,
+      "responses": 15
+    }
+  },
+  "startedAt": "2026-11-19T11:03:52.428Z",
+  "finishedAt": "2026-11-19T11:06:19.511Z"
+}
