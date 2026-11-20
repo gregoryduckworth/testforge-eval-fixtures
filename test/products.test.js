@@ -1,5 +1,7 @@
+// CONTRACT-20261120-402E: TC1, TC2
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
+import { PRODUCTS } from '../src/store.js';
 
 let server;
 let base;
@@ -24,5 +26,27 @@ describe('GET /products', () => {
     const response = await fetch(`${base}/products?q=TEA`);
     const { items } = await response.json();
     expect(items.map((p) => p.name)).toEqual(['Teapot', 'Tea towel']);
+  });
+});
+
+describe('GET /products/{id}', () => {
+  it('returns one product by its id', async () => {
+    const teapot = PRODUCTS.find((p) => p.id === 2);
+    const response = await fetch(`${base}/products/${teapot.id}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(await response.json()).toEqual({
+      id: 2,
+      name: teapot.name,
+      priceCents: teapot.priceCents,
+      stock: teapot.stock,
+    });
+  });
+
+  it('is 404 for an unknown product', async () => {
+    const response = await fetch(`${base}/products/99`);
+    expect(response.status).toBe(404);
+    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(await response.json()).toEqual({ error: expect.any(String) });
   });
 });
