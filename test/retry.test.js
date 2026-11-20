@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+// SYNC-21: TC1
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { retry, retryDelay } from '../src/retry.js';
 
 describe('retryDelay', () => {
@@ -15,6 +16,10 @@ describe('retryDelay', () => {
 });
 
 describe('retry', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('resolves with the first result when the call succeeds', async () => {
     const task = vi.fn().mockResolvedValue('ok');
     await expect(retry(task)).resolves.toBe('ok');
@@ -23,8 +28,11 @@ describe('retry', () => {
 
   it('retries a failed call after a back-off', async () => {
     const task = vi.fn().mockRejectedValueOnce(new Error('busy')).mockResolvedValue('ok');
+    vi.useFakeTimers();
     const result = retry(task);
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    // The back-off is 20ms plus up to 39ms of random jitter: advance the clock past the longest
+    // one it can pick, rather than waiting a fixed real-time delay the back-off can outlast.
+    await vi.advanceTimersByTimeAsync(retryDelay(0, { random: () => 1 - Number.EPSILON }));
     expect(task).toHaveBeenCalledTimes(2);
     await expect(result).resolves.toBe('ok');
   });
