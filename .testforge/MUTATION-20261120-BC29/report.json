@@ -1,0 +1,1166 @@
+{
+  "status": "succeeded",
+  "workflow": "mutation",
+  "ticketKey": "MUTATION-20261120-BC29",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/mutation-20261120-bc29-strengthen-weak-tests-um13",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "Stryker left 6 mutants alive in src/pricing.js because the tests skip boundary values and two applyCoupon tests have no real assertion. The plan adds exact-value assertions to those two tests and adds cases at the $50 shipping boundary, at exactly $100 with SAVE20, and for an orderTotal that includes shipping. The expected values come from the README and JSDoc, which agree with the code.",
+    "inScope": [
+      "applyCoupon, shippingCost and orderTotal behaviour in src/pricing.js at the points the 6 surviving mutants change"
+    ],
+    "outOfScope": [
+      "The 2 mutants that no test reaches (missing coverage, which the work item excludes)",
+      "Restructuring the existing tests beyond adding assertions and cases"
+    ],
+    "assumptions": [
+      "README and JSDoc state the intended behaviour: free shipping at a subtotal >= $50, SAVE20 only applies when the subtotal is strictly over $100, and the total is the discounted subtotal plus shipping",
+      "Existing tests keep their titles and what they cover; in TC2, toBeDefined is replaced by the stricter toBe(50), which still fails whenever toBeDefined would"
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "Off-by-one at the coupon and shipping thresholds would go unnoticed and customers would be charged the wrong amount",
+        "impact": "high",
+        "mitigation": "Add tests that use the exact boundary inputs, 50 and 100"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "Shipping is free for a subtotal of exactly $50 or more",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "A code other than SAVE20, or no code, leaves the subtotal unchanged",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "SAVE20 leaves a subtotal of $100 or less unchanged",
+        "derived": true
+      },
+      {
+        "id": "AC4",
+        "text": "orderTotal adds shipping to the discounted subtotal when shipping is charged",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "handles an order without a coupon",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "applyCoupon(200, undefined)"
+        ],
+        "expected": "returns 200",
+        "testData": "200, undefined",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "Strengthens the existing test, which asserts nothing. Kills mutant 1 (code check → true) and mutant 2 (&& → ||): with either change a 200 order with no code is discounted to 160."
+      },
+      {
+        "id": "TC2",
+        "title": "handles a small order with the coupon",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "applyCoupon(50, 'SAVE20')"
+        ],
+        "expected": "returns 50",
+        "testData": "50, SAVE20",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "Replaces toBeDefined with the exact value. Kills mutant 4 (subtotal > 100 → true) and mutant 2 (&& → ||), which both discount 50 to 40."
+      },
+      {
+        "id": "TC3",
+        "title": "does not discount an order of exactly 100 with SAVE20",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "applyCoupon(100, 'SAVE20')"
+        ],
+        "expected": "returns 100",
+        "testData": "100, SAVE20",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "Kills mutant 5 (> 100 → >= 100), which would discount the boundary order to 80."
+      },
+      {
+        "id": "TC4",
+        "title": "ships an order of exactly 50 for free",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "shippingCost(50)"
+        ],
+        "expected": "returns 0",
+        "testData": "50",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "Kills mutant 3 (>= 50 → > 50), which would charge 4.99 at exactly $50."
+      },
+      {
+        "id": "TC5",
+        "title": "adds shipping to a small order's total",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [],
+        "steps": [
+          "orderTotal([{ price: 10, quantity: 2 }])"
+        ],
+        "expected": "returns 24.99",
+        "testData": "one item at 10 x 2",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "Kills mutant 6 (+ shipping → - shipping), which would give 15.01. The existing orderTotal test has free shipping, so + and - give the same result there."
+      }
+    ],
+    "environmentNotes": "None; pure unit tests run with `npm test` (vitest)."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/pricing.test.js --reporter=json --outputFile=/data/workspaces/bc29ac5d-a7ed-485e-93cb-943d06b154f3/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 473,
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "total": 9,
+      "cases": [
+        {
+          "title": "shippingCost charges for a small order",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 1.4125019999999893
+        },
+        {
+          "title": "shippingCost ships a large order for free",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.1818659999999852
+        },
+        {
+          "title": "shippingCost ships an order of exactly 50 for free",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.1620290000000182
+        },
+        {
+          "title": "applyCoupon takes 20% off a large order with SAVE20",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.18040700000000243
+        },
+        {
+          "title": "applyCoupon handles an order without a coupon",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.13381500000002688
+        },
+        {
+          "title": "applyCoupon handles a small order with the coupon",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.13589999999999236
+        },
+        {
+          "title": "applyCoupon does not discount an order of exactly 100 with SAVE20",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.13673199999999497
+        },
+        {
+          "title": "orderTotal adds up the items, with shipping",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.16265399999997499
+        },
+        {
+          "title": "orderTotal adds shipping to a small order's total",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.13589899999999489
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "test/pricing.test.js",
+      "status": "modified"
+    }
+  ],
+  "mutation": [
+    {
+      "framework": "vitest",
+      "packageDir": ".",
+      "mutate": [
+        "src/pricing.js"
+      ],
+      "files": [
+        "src/pricing.js"
+      ],
+      "totals": {
+        "mutants": 28,
+        "killed": 20,
+        "survived": 6,
+        "noCoverage": 2,
+        "timeout": 0,
+        "errors": 0,
+        "ignored": 0
+      },
+      "score": 71.4,
+      "mutants": [
+        {
+          "key": "src/pricing.js:3:7-3:21 EqualityOperator subtotal > 50",
+          "file": "src/pricing.js",
+          "line": 3,
+          "column": 7,
+          "endLine": 3,
+          "endColumn": 21,
+          "mutator": "EqualityOperator",
+          "replacement": "subtotal > 50",
+          "original": "subtotal >= 50",
+          "status": "survived",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order",
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": []
+        },
+        {
+          "key": "src/pricing.js:11:7-11:24 ConditionalExpression true",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 24,
+          "mutator": "ConditionalExpression",
+          "replacement": "true",
+          "original": "code === 'SAVE20'",
+          "status": "survived",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": []
+        },
+        {
+          "key": "src/pricing.js:11:7-11:42 LogicalOperator code === 'SAVE20' || subtotal > 100",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "LogicalOperator",
+          "replacement": "code === 'SAVE20' || subtotal > 100",
+          "original": "code === 'SAVE20' && subtotal > 100",
+          "status": "survived",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": []
+        },
+        {
+          "key": "src/pricing.js:11:28-11:42 ConditionalExpression true",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 28,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "ConditionalExpression",
+          "replacement": "true",
+          "original": "subtotal > 100",
+          "status": "survived",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon"
+          ],
+          "killedBy": []
+        },
+        {
+          "key": "src/pricing.js:11:28-11:42 EqualityOperator subtotal >= 100",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 28,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "EqualityOperator",
+          "replacement": "subtotal >= 100",
+          "original": "subtotal > 100",
+          "status": "survived",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon"
+          ],
+          "killedBy": []
+        },
+        {
+          "key": "src/pricing.js:21:22-21:59 ArithmeticOperator discounted - shippingCost(discounted)",
+          "file": "src/pricing.js",
+          "line": 21,
+          "column": 22,
+          "endLine": 21,
+          "endColumn": 59,
+          "mutator": "ArithmeticOperator",
+          "replacement": "discounted - shippingCost(discounted)",
+          "original": "discounted + shippingCost(discounted)",
+          "status": "survived",
+          "coveredBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": []
+        },
+        {
+          "key": "src/pricing.js:25:37-27:2 BlockStatement {}",
+          "file": "src/pricing.js",
+          "line": 25,
+          "column": 37,
+          "endLine": 27,
+          "endColumn": 2,
+          "mutator": "BlockStatement",
+          "replacement": "{}",
+          "original": "{ return `$${amount.toFixed(2)}`; }",
+          "status": "no-coverage",
+          "coveredBy": [],
+          "killedBy": []
+        },
+        {
+          "key": "src/pricing.js:26:10-26:33 StringLiteral ``",
+          "file": "src/pricing.js",
+          "line": 26,
+          "column": 10,
+          "endLine": 26,
+          "endColumn": 33,
+          "mutator": "StringLiteral",
+          "replacement": "``",
+          "original": "`$${amount.toFixed(2)}`",
+          "status": "no-coverage",
+          "coveredBy": [],
+          "killedBy": []
+        },
+        {
+          "key": "src/pricing.js:2:40-7:2 BlockStatement {}",
+          "file": "src/pricing.js",
+          "line": 2,
+          "column": 40,
+          "endLine": 7,
+          "endColumn": 2,
+          "mutator": "BlockStatement",
+          "replacement": "{}",
+          "original": "{ if (subtotal >= 50) { return 0; } return 4.99; }",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order",
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order"
+          ]
+        },
+        {
+          "key": "src/pricing.js:3:7-3:21 ConditionalExpression false",
+          "file": "src/pricing.js",
+          "line": 3,
+          "column": 7,
+          "endLine": 3,
+          "endColumn": 21,
+          "mutator": "ConditionalExpression",
+          "replacement": "false",
+          "original": "subtotal >= 50",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order",
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › shippingCost > ships a large order for free"
+          ]
+        },
+        {
+          "key": "src/pricing.js:3:7-3:21 ConditionalExpression true",
+          "file": "src/pricing.js",
+          "line": 3,
+          "column": 7,
+          "endLine": 3,
+          "endColumn": 21,
+          "mutator": "ConditionalExpression",
+          "replacement": "true",
+          "original": "subtotal >= 50",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order",
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order"
+          ]
+        },
+        {
+          "key": "src/pricing.js:3:7-3:21 EqualityOperator subtotal < 50",
+          "file": "src/pricing.js",
+          "line": 3,
+          "column": 7,
+          "endLine": 3,
+          "endColumn": 21,
+          "mutator": "EqualityOperator",
+          "replacement": "subtotal < 50",
+          "original": "subtotal >= 50",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order",
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order"
+          ]
+        },
+        {
+          "key": "src/pricing.js:3:23-5:4 BlockStatement {}",
+          "file": "src/pricing.js",
+          "line": 3,
+          "column": 23,
+          "endLine": 5,
+          "endColumn": 4,
+          "mutator": "BlockStatement",
+          "replacement": "{}",
+          "original": "{ return 0; }",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › shippingCost > ships a large order for free"
+          ]
+        },
+        {
+          "key": "src/pricing.js:10:45-15:2 BlockStatement {}",
+          "file": "src/pricing.js",
+          "line": 10,
+          "column": 45,
+          "endLine": 15,
+          "endColumn": 2,
+          "mutator": "BlockStatement",
+          "replacement": "{}",
+          "original": "{ if (code === 'SAVE20' && subtotal > 100) { return Math.round(subtotal * 80) / 100; } return subtotal; }",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:7-11:24 EqualityOperator code !== 'SAVE20'",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 24,
+          "mutator": "EqualityOperator",
+          "replacement": "code !== 'SAVE20'",
+          "original": "code === 'SAVE20'",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:7-11:42 ConditionalExpression false",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "ConditionalExpression",
+          "replacement": "false",
+          "original": "code === 'SAVE20' && subtotal > 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:7-11:42 ConditionalExpression true",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "ConditionalExpression",
+          "replacement": "true",
+          "original": "code === 'SAVE20' && subtotal > 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:16-11:24 StringLiteral \"\"",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 16,
+          "endLine": 11,
+          "endColumn": 24,
+          "mutator": "StringLiteral",
+          "replacement": "\"\"",
+          "original": "'SAVE20'",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:28-11:42 EqualityOperator subtotal <= 100",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 28,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "EqualityOperator",
+          "replacement": "subtotal <= 100",
+          "original": "subtotal > 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:44-13:4 BlockStatement {}",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 44,
+          "endLine": 13,
+          "endColumn": 4,
+          "mutator": "BlockStatement",
+          "replacement": "{}",
+          "original": "{ return Math.round(subtotal * 80) / 100; }",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:12:12-12:43 ArithmeticOperator Math.round(subtotal * 80) * 100",
+          "file": "src/pricing.js",
+          "line": 12,
+          "column": 12,
+          "endLine": 12,
+          "endColumn": 43,
+          "mutator": "ArithmeticOperator",
+          "replacement": "Math.round(subtotal * 80) * 100",
+          "original": "Math.round(subtotal * 80) / 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:12:23-12:36 ArithmeticOperator subtotal / 80",
+          "file": "src/pricing.js",
+          "line": 12,
+          "column": 23,
+          "endLine": 12,
+          "endColumn": 36,
+          "mutator": "ArithmeticOperator",
+          "replacement": "subtotal / 80",
+          "original": "subtotal * 80",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:18:41-22:2 BlockStatement {}",
+          "file": "src/pricing.js",
+          "line": 18,
+          "column": 41,
+          "endLine": 22,
+          "endColumn": 2,
+          "mutator": "BlockStatement",
+          "replacement": "{}",
+          "original": "{ const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0); const discounted = applyCoupon(subtotal, code); return Math.round((discounted + shippingCost(discounted)) * 100) /…",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ]
+        },
+        {
+          "key": "src/pricing.js:19:33-19:80 ArrowFunction () => undefined",
+          "file": "src/pricing.js",
+          "line": 19,
+          "column": 33,
+          "endLine": 19,
+          "endColumn": 80,
+          "mutator": "ArrowFunction",
+          "replacement": "() => undefined",
+          "original": "(sum, item) => sum + item.price * item.quantity",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ]
+        },
+        {
+          "key": "src/pricing.js:19:48-19:80 ArithmeticOperator sum - item.price * item.quantity",
+          "file": "src/pricing.js",
+          "line": 19,
+          "column": 48,
+          "endLine": 19,
+          "endColumn": 80,
+          "mutator": "ArithmeticOperator",
+          "replacement": "sum - item.price * item.quantity",
+          "original": "sum + item.price * item.quantity",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ]
+        },
+        {
+          "key": "src/pricing.js:19:54-19:80 ArithmeticOperator item.price / item.quantity",
+          "file": "src/pricing.js",
+          "line": 19,
+          "column": 54,
+          "endLine": 19,
+          "endColumn": 80,
+          "mutator": "ArithmeticOperator",
+          "replacement": "item.price / item.quantity",
+          "original": "item.price * item.quantity",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ]
+        },
+        {
+          "key": "src/pricing.js:21:10-21:73 ArithmeticOperator Math.round((discounted + shippingCost(discounted)) * 100) * 100",
+          "file": "src/pricing.js",
+          "line": 21,
+          "column": 10,
+          "endLine": 21,
+          "endColumn": 73,
+          "mutator": "ArithmeticOperator",
+          "replacement": "Math.round((discounted + shippingCost(discounted)) * 100) * 100",
+          "original": "Math.round((discounted + shippingCost(discounted)) * 100) / 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ]
+        },
+        {
+          "key": "src/pricing.js:21:21-21:66 ArithmeticOperator (discounted + shippingCost(discounted)) / 100",
+          "file": "src/pricing.js",
+          "line": 21,
+          "column": 21,
+          "endLine": 21,
+          "endColumn": 66,
+          "mutator": "ArithmeticOperator",
+          "replacement": "(discounted + shippingCost(discounted)) / 100",
+          "original": "(discounted + shippingCost(discounted)) * 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping"
+          ]
+        }
+      ],
+      "command": "stryker run stryker.config.json",
+      "durationMs": 11598
+    },
+    {
+      "framework": "vitest",
+      "packageDir": ".",
+      "mutate": [
+        "src/pricing.js:11:6-11:24",
+        "src/pricing.js:11:6-11:42",
+        "src/pricing.js:3:6-3:21",
+        "src/pricing.js:11:27-11:42",
+        "src/pricing.js:21:21-21:59"
+      ],
+      "files": [
+        "src/pricing.js"
+      ],
+      "totals": {
+        "mutants": 14,
+        "killed": 14,
+        "survived": 0,
+        "noCoverage": 0,
+        "timeout": 0,
+        "errors": 0,
+        "ignored": 0
+      },
+      "score": 100,
+      "mutants": [
+        {
+          "key": "src/pricing.js:3:7-3:21 ConditionalExpression false",
+          "file": "src/pricing.js",
+          "line": 3,
+          "column": 7,
+          "endLine": 3,
+          "endColumn": 21,
+          "mutator": "ConditionalExpression",
+          "replacement": "false",
+          "original": "subtotal >= 50",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order",
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › shippingCost > ships an order of exactly 50 for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › shippingCost > ships a large order for free"
+          ]
+        },
+        {
+          "key": "src/pricing.js:3:7-3:21 ConditionalExpression true",
+          "file": "src/pricing.js",
+          "line": 3,
+          "column": 7,
+          "endLine": 3,
+          "endColumn": 21,
+          "mutator": "ConditionalExpression",
+          "replacement": "true",
+          "original": "subtotal >= 50",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order",
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › shippingCost > ships an order of exactly 50 for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order"
+          ]
+        },
+        {
+          "key": "src/pricing.js:3:7-3:21 EqualityOperator subtotal < 50",
+          "file": "src/pricing.js",
+          "line": 3,
+          "column": 7,
+          "endLine": 3,
+          "endColumn": 21,
+          "mutator": "EqualityOperator",
+          "replacement": "subtotal < 50",
+          "original": "subtotal >= 50",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order",
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › shippingCost > ships an order of exactly 50 for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order"
+          ]
+        },
+        {
+          "key": "src/pricing.js:3:7-3:21 EqualityOperator subtotal > 50",
+          "file": "src/pricing.js",
+          "line": 3,
+          "column": 7,
+          "endLine": 3,
+          "endColumn": 21,
+          "mutator": "EqualityOperator",
+          "replacement": "subtotal > 50",
+          "original": "subtotal >= 50",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › shippingCost > charges for a small order",
+            "test/pricing.test.js › shippingCost > ships a large order for free",
+            "test/pricing.test.js › shippingCost > ships an order of exactly 50 for free",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › shippingCost > ships an order of exactly 50 for free"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:7-11:24 ConditionalExpression true",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 24,
+          "mutator": "ConditionalExpression",
+          "replacement": "true",
+          "original": "code === 'SAVE20'",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:7-11:24 EqualityOperator code !== 'SAVE20'",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 24,
+          "mutator": "EqualityOperator",
+          "replacement": "code !== 'SAVE20'",
+          "original": "code === 'SAVE20'",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:7-11:42 ConditionalExpression false",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "ConditionalExpression",
+          "replacement": "false",
+          "original": "code === 'SAVE20' && subtotal > 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:7-11:42 ConditionalExpression true",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "ConditionalExpression",
+          "replacement": "true",
+          "original": "code === 'SAVE20' && subtotal > 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:7-11:42 LogicalOperator code === 'SAVE20' || subtotal > 100",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 7,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "LogicalOperator",
+          "replacement": "code === 'SAVE20' || subtotal > 100",
+          "original": "code === 'SAVE20' && subtotal > 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:16-11:24 StringLiteral \"\"",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 16,
+          "endLine": 11,
+          "endColumn": 24,
+          "mutator": "StringLiteral",
+          "replacement": "\"\"",
+          "original": "'SAVE20'",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles an order without a coupon",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20",
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:28-11:42 ConditionalExpression true",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 28,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "ConditionalExpression",
+          "replacement": "true",
+          "original": "subtotal > 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:28-11:42 EqualityOperator subtotal <= 100",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 28,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "EqualityOperator",
+          "replacement": "subtotal <= 100",
+          "original": "subtotal > 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:11:28-11:42 EqualityOperator subtotal >= 100",
+          "file": "src/pricing.js",
+          "line": 11,
+          "column": 28,
+          "endLine": 11,
+          "endColumn": 42,
+          "mutator": "EqualityOperator",
+          "replacement": "subtotal >= 100",
+          "original": "subtotal > 100",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › applyCoupon > takes 20% off a large order with SAVE20",
+            "test/pricing.test.js › applyCoupon > handles a small order with the coupon",
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › applyCoupon > does not discount an order of exactly 100 with SAVE20"
+          ]
+        },
+        {
+          "key": "src/pricing.js:21:22-21:59 ArithmeticOperator discounted - shippingCost(discounted)",
+          "file": "src/pricing.js",
+          "line": 21,
+          "column": 22,
+          "endLine": 21,
+          "endColumn": 59,
+          "mutator": "ArithmeticOperator",
+          "replacement": "discounted - shippingCost(discounted)",
+          "original": "discounted + shippingCost(discounted)",
+          "status": "killed",
+          "coveredBy": [
+            "test/pricing.test.js › orderTotal > adds up the items, with shipping",
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ],
+          "killedBy": [
+            "test/pricing.test.js › orderTotal > adds shipping to a small order's total"
+          ]
+        }
+      ],
+      "command": "stryker run stryker.config.json",
+      "durationMs": 2893
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "submit_strategy",
+      "submit_strategy",
+      "run_tests",
+      "run_tests",
+      "run_checks",
+      "self_check",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "submit_strategy",
+        "category": "standards",
+        "reason": "strategy submitted before testforge:refactor were loaded",
+        "stage": "strategy"
+      },
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "test/pricing.test.js written before testforge:unit, testforge:vitest, testforge:implementation were loaded",
+        "stage": "author"
+      },
+      {
+        "tool": "run_tests",
+        "category": "not_ready",
+        "reason": "No runnable test files were found.",
+        "stage": "execute"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 2,
+      "not_ready": 1
+    },
+    "optionalTools": {
+      "run_checks": 1,
+      "self_check": 1
+    },
+    "subagentCalls": 0
+  },
+  "usage": {
+    "costUsd": 0.5604764,
+    "inputTokens": 511399,
+    "outputTokens": 1442
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.278088,
+      "inputTokens": 86,
+      "cacheReadTokens": 374295,
+      "cacheCreationTokens": 39913,
+      "outputTokens": 166,
+      "responses": 10
+    }
+  },
+  "startedAt": "2026-11-20T14:03:31.256Z",
+  "finishedAt": "2026-11-20T14:05:09.450Z"
+}
