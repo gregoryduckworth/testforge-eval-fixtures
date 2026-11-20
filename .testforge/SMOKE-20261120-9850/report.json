@@ -1,0 +1,252 @@
+{
+  "status": "succeeded",
+  "workflow": "smoke",
+  "ticketKey": "SMOKE-20261120-9850",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/smoke-20261120-9850-smoke-check-a-deployment-m8oi",
+  "frameworks": [
+    "playwright"
+  ],
+  "strategy": {
+    "summary": "The shop (catalogue, product pages, cookie cart, checkout) has no smoke suite. Add tests/shop.smoke.spec.js: five fast Playwright tests, each tagged @smoke, that reach the app only through the configured baseURL (BASE_URL when set) and only read. Together they show the build is up, its catalogue, product pages, cart and checkout page are reachable and show what a shopper expects. Placing an order is not done, because it is the only request that writes data on the server.",
+    "inScope": [
+      "GET /health",
+      "Catalogue home page",
+      "Product page reached from the catalogue",
+      "Adding to the cart (a browser cookie only; no server request) and the cart page",
+      "Checkout page rendering its order form (not submitted)"
+    ],
+    "outOfScope": [
+      "Placing an order (POST /orders): it is the only request that writes server data, so it is left to the existing checkout.spec.js",
+      "Error paths (404, empty cart, form validation): a smoke suite checks critical paths only",
+      "Running the suite in this run: the target is a non-disposable deployed build; the PR's CI runs it"
+    ],
+    "assumptions": [
+      "Adding to the cart counts as read-only: public/app.js writes only the browser's cart cookie and sends no request, and README says POST /orders is the only request that changes anything on the server. Each Playwright test has its own browser context, so the cookie never outlives the test.",
+      "The catalogue is code (src/catalogue.js PRODUCTS), not seeded data, so every environment of the same build shows it; the tests import PRODUCTS/formatPrice rather than copying names and prices.",
+      "No first-party service is faked: without BASE_URL the config starts the real server (node src/server.js); with it the tests hit the deployed build."
+    ],
+    "openQuestions": [
+      "The repo has no lint or type-check scripts; the new file can only be checked by run_checks and the Playwright run in CI."
+    ],
+    "risks": [
+      {
+        "description": "A smoke test that writes data would place orders in production",
+        "impact": "high",
+        "mitigation": "No test submits the checkout form or sends a non-GET request; the checkout test only asserts the form is shown."
+      },
+      {
+        "description": "Tests tied to a host would check the wrong build",
+        "impact": "medium",
+        "mitigation": "Only relative URLs, resolved against the configured baseURL."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "The app is up: GET /health answers 200 with {\"status\":\"ok\"}",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "The catalogue home page loads and lists every product with its price",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "A shopper can open a product page from the catalogue and sees its name and price",
+        "derived": true
+      },
+      {
+        "id": "AC4",
+        "text": "A shopper can add a product to the cart and the cart page shows it with the right total",
+        "derived": true
+      },
+      {
+        "id": "AC5",
+        "text": "With items in the cart, the checkout page shows the order form",
+        "derived": true
+      },
+      {
+        "id": "AC6",
+        "text": "Every smoke test is tagged @smoke in its title, reaches the app only through the base URL, and creates, changes or deletes no server data",
+        "derived": true,
+        "metBy": "tests/shop.smoke.spec.js uses only relative page.goto/request.get paths against the config's baseURL, @smoke in each title, and never submits the checkout form or sends a non-GET request."
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "health endpoint reports the shop is up @smoke",
+        "level": "api",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "App reachable at baseURL"
+        ],
+        "steps": [
+          "GET /health with the request fixture"
+        ],
+        "expected": "Status 200 and JSON body {status: 'ok'}",
+        "testData": "",
+        "targetFile": "tests/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the build starts and answers at all."
+      },
+      {
+        "id": "TC2",
+        "title": "catalogue lists every product with its price @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Open /"
+        ],
+        "expected": "Heading 'Our teaware'; a link for each product in PRODUCTS (exact name) and each product's formatted price shown",
+        "testData": "PRODUCTS from src/catalogue.js",
+        "targetFile": "tests/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the shop's front page, where every visit starts."
+      },
+      {
+        "id": "TC3",
+        "title": "opens a product page from the catalogue @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Open /",
+          "Click the 'Cast-iron teapot' link"
+        ],
+        "expected": "URL /products/teapot; heading 'Cast-iron teapot'; price £48.00 and an 'Add to cart' button visible",
+        "testData": "teapot from PRODUCTS",
+        "targetFile": "tests/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: shoppers reach products via catalogue links."
+      },
+      {
+        "id": "TC4",
+        "title": "adds a product to the cart and shows it on the cart page @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [
+          "Fresh browser context (empty cart cookie)"
+        ],
+        "steps": [
+          "Open /products/teapot",
+          "Click 'Add to cart'",
+          "Click the 'Cart (1)' link"
+        ],
+        "expected": "Status 'Added to your cart'; cart link reads 'Cart (1)'; cart page heading 'Your cart', a row for 'Cast-iron teapot' and 'Total: £48.00'",
+        "testData": "teapot",
+        "targetFile": "tests/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the cart (client cookie + server-rendered cart page); writes no server data."
+      },
+      {
+        "id": "TC5",
+        "title": "checkout page shows the order form for the cart @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC5"
+        ],
+        "preconditions": [
+          "Fresh browser context"
+        ],
+        "steps": [
+          "Open /products/teapot and click 'Add to cart'",
+          "Open /cart and click 'Go to checkout'"
+        ],
+        "expected": "Heading 'Checkout'; Name, Email, Address fields and a 'Place order' button visible; form is NOT submitted",
+        "testData": "teapot",
+        "targetFile": "tests/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the checkout page renders, without placing an order."
+      }
+    ],
+    "environmentNotes": "BASE_URL selects a deployed build; without it playwright.config.js starts node src/server.js on localhost:4175. CI (.github/workflows/ci.yml) runs `npx playwright test`, which includes the new file; smoke runs filter with `--grep @smoke`."
+  },
+  "results": [],
+  "files": [
+    {
+      "path": "tests/shop.smoke.spec.js",
+      "status": "added"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "run_checks",
+      "self_check",
+      "run_command",
+      "request_review",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "tests/shop.smoke.spec.js written before testforge:api, testforge:playwright were loaded",
+        "stage": "author"
+      },
+      {
+        "tool": "run_command",
+        "category": "command",
+        "reason": "`playwright` runs tests, and this run writes a smoke suite for http://host.docker.internal:57595, which isn't marked disposable, without running it.",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1,
+      "command": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_checks": 1,
+      "self_check": 1,
+      "run_command": 1,
+      "request_review": 1
+    },
+    "subagentCalls": 0
+  },
+  "usage": {
+    "costUsd": 0.7063310999999999,
+    "inputTokens": 717270,
+    "outputTokens": 3963
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.3217478,
+      "inputTokens": 90,
+      "cacheReadTokens": 504189,
+      "cacheCreationTokens": 43462,
+      "outputTokens": 162,
+      "responses": 12
+    }
+  },
+  "startedAt": "2026-11-20T17:06:33.154Z",
+  "finishedAt": "2026-11-20T17:08:41.830Z"
+}
