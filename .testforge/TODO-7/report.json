@@ -1,0 +1,433 @@
+{
+  "status": "succeeded",
+  "workflow": "ticket",
+  "ticketKey": "TODO-7",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/todo-7-complete-filter-and-clear-todo-bi4n",
+  "frameworks": [
+    "playwright"
+  ],
+  "strategy": {
+    "summary": "The todo app (public/app.js, in-memory per page) lets users tick todos to complete them, filter All/Active/Completed and clear completed todos. Playwright e2e tests against the real static server prove the strike-through and items-left count, each filter's contents and pressed state, and the visibility and effect of \"Clear completed\".",
+    "inScope": [
+      "Completing and uncompleting a todo via its checkbox (strike-through, items-left count)",
+      "All / Active / Completed filters and their aria-pressed state",
+      "Clear completed button visibility and effect"
+    ],
+    "outOfScope": [
+      "Adding todos (covered by tests/add-todo.spec.js)",
+      "Persistence across reloads (the app keeps todos in memory only; ticket doesn't ask for it)"
+    ],
+    "assumptions": [
+      "The app's only server is server.js serving static files; it runs for real via Playwright's existing webServer config. Nothing is faked.",
+      "Todos live in page memory, so each test gets fresh state from its own page; no cleanup is needed.",
+      "'Struck through' is checked as the computed text-decoration-line of the todo's title (line-through), which the app's stylesheet applies to li.completed span.",
+      "'Shown as pressed' means aria-pressed=\"true\" on the selected filter button and \"false\" on the others, as app.js sets it."
+    ],
+    "openQuestions": [
+      "The #count element has no role or test id; tests locate it by id. Consider adding data-testid or role=\"status\"."
+    ],
+    "risks": [
+      {
+        "description": "Count wording regression (e.g. '1 items left') or off-by-one in the count",
+        "impact": "medium",
+        "mitigation": "Exact-text assertions on the count element in TC1, TC2, TC7"
+      },
+      {
+        "description": "Filter shows wrong subset or loses order",
+        "impact": "high",
+        "mitigation": "TC3–TC5 assert the full ordered list of titles per filter"
+      },
+      {
+        "description": "Clear completed removes active todos or stays visible",
+        "impact": "medium",
+        "mitigation": "TC6, TC7 assert visibility and the remaining todos"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "Ticking a todo's checkbox marks it completed: its title is struck through and the items-left count goes down by one; unticking reverses both.",
+        "derived": false
+      },
+      {
+        "id": "AC2",
+        "text": "Active shows only non-completed todos, Completed only completed ones, All every todo; the selected filter is shown as pressed.",
+        "derived": false
+      },
+      {
+        "id": "AC3",
+        "text": "\"Clear completed\" is visible only while at least one todo is completed, and clicking it removes every completed todo.",
+        "derived": false
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "ticking a todo strikes it through and decrements the items left",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "App open with todos 'Walk dog', 'Pay rent' added"
+        ],
+        "steps": [
+          "Tick 'Walk dog'"
+        ],
+        "expected": "Checkbox is checked, 'Walk dog' title has line-through, 'Pay rent' does not; count reads '1 item left' (was '2 items left')",
+        "testData": "Walk dog, Pay rent",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Core completion behaviour"
+      },
+      {
+        "id": "TC2",
+        "title": "unticking a completed todo removes the strike-through and restores the items left",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "Todos 'Walk dog', 'Pay rent' added, 'Walk dog' ticked"
+        ],
+        "steps": [
+          "Untick 'Walk dog'"
+        ],
+        "expected": "Checkbox unchecked, title text-decoration not line-through, count reads '2 items left'",
+        "testData": "Walk dog, Pay rent",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "AC1 reversal"
+      },
+      {
+        "id": "TC3",
+        "title": "Active filter shows only todos that are not completed and is pressed",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Todos 'Walk dog', 'Pay rent', 'Call mum' added, 'Pay rent' ticked"
+        ],
+        "steps": [
+          "Click Active"
+        ],
+        "expected": "List titles are exactly ['Walk dog', 'Call mum']; Active aria-pressed=true, All and Completed false",
+        "testData": "",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Filter correctness"
+      },
+      {
+        "id": "TC4",
+        "title": "Completed filter shows only completed todos and is pressed",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Same three todos, 'Pay rent' ticked"
+        ],
+        "steps": [
+          "Click Completed"
+        ],
+        "expected": "List titles exactly ['Pay rent']; Completed pressed, others not",
+        "testData": "",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Filter correctness"
+      },
+      {
+        "id": "TC5",
+        "title": "All filter shows every todo in order after another filter and is pressed",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Same three todos, 'Pay rent' ticked, Completed filter selected"
+        ],
+        "steps": [
+          "Click All"
+        ],
+        "expected": "List titles exactly ['Walk dog', 'Pay rent', 'Call mum']; All pressed, others not",
+        "testData": "",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Returning to All restores the full list"
+      },
+      {
+        "id": "TC6",
+        "title": "ticking a todo under the Active filter removes it from the view",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "edge",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Todos 'Walk dog', 'Pay rent' added, Active filter selected"
+        ],
+        "steps": [
+          "Tick 'Walk dog'"
+        ],
+        "expected": "List titles exactly ['Pay rent']; count '1 item left'",
+        "testData": "",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Filter re-applies when state changes"
+      },
+      {
+        "id": "TC7",
+        "title": "Clear completed is hidden until a todo is completed and hides again when it is unticked",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "Todo 'Walk dog' added"
+        ],
+        "steps": [
+          "Check button hidden",
+          "Tick 'Walk dog'",
+          "Untick 'Walk dog'"
+        ],
+        "expected": "Hidden with the todo listed; visible after tick; hidden after untick",
+        "testData": "",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Visibility rule both ways"
+      },
+      {
+        "id": "TC8",
+        "title": "Clear completed removes every completed todo and keeps the active ones",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "Todos 'Walk dog', 'Pay rent', 'Call mum', 'Buy bread' added; 'Walk dog' and 'Call mum' ticked"
+        ],
+        "steps": [
+          "Click Clear completed"
+        ],
+        "expected": "List titles exactly ['Pay rent', 'Buy bread']; count '2 items left'; Clear completed hidden",
+        "testData": "",
+        "targetFile": "tests/complete-filter-clear.spec.js",
+        "automate": true,
+        "rationale": "Removes all (not just one) completed todos"
+      }
+    ],
+    "environmentNotes": "Playwright's webServer starts `node server.js` on 4173 (BASE_URL http://localhost:4173). No env vars or seed data."
+  },
+  "results": [
+    {
+      "framework": "playwright",
+      "command": "playwright test tests/complete-filter-clear.spec.js --reporter=json",
+      "exitCode": 0,
+      "durationMs": 3891,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "total": 8,
+      "cases": [
+        {
+          "title": "ticking a todo strikes it through and decrements the items left [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 301,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "unticking a completed todo removes the strike-through and restores the items left [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 254,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "Active filter shows only todos that are not completed and is pressed [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 264,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "Completed filter shows only completed todos and is pressed [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 273,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "All filter shows every todo in order after another filter and is pressed [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 336,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "ticking a todo under the Active filter removes it from the view [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 218,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "Clear completed is hidden until a todo is completed and hides again when it is unticked [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 267,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "Clear completed removes every completed todo and keeps the active ones [chromium]",
+          "file": "complete-filter-clear.spec.js",
+          "status": "passed",
+          "durationMs": 412,
+          "timeoutMs": 30000
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "tests/complete-filter-clear.spec.js",
+      "status": "added"
+    }
+  ],
+  "review": [
+    {
+      "file": "tests/complete-filter-clear.spec.js",
+      "line": 6,
+      "standard": "Playwright rules: never use CSS selectors; General: avoid brittle selectors that rely on DOM structure",
+      "severity": "blocking",
+      "summary": "`todoTitles` finds each todo's title with the CSS tag selector `.locator('span')`, so it depends on app.js wrapping the title in a <span>, when the list item's own text is already exactly the title.",
+      "failureScenario": "Say app.js renders the title as the label's text node, or in a <strong> or <p>, instead of a <span>. Todos still add, filter and clear correctly. But `todoTitles` then matches nothing, so `addTodos` (line 21) and the list assertions in TC3, TC4, TC5, TC6 and TC8 (lines 59, 69, 80, 90, 117) fail even though the app works. `todoList(page).getByRole('listitem')` with `toHaveText(titles)` checks the same ordered titles, as tests/add-todo.spec.js already does. That works because the checkbox in each item adds no text.",
+      "id": "R1.1",
+      "round": 1,
+      "status": "disputed",
+      "response": "The e2e standards forbid text checks on a row/group locator (toHaveText on a list item passes when the words are anywhere in it, and TestForge refuses publishing over it). The <span> is the one element that shows the title and the app offers no role or test id for it; a follow-up asks for a data-testid on it."
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "run_tests",
+      "run_checks",
+      "self_check",
+      "publish",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "tests/complete-filter-clear.spec.js written before testforge:playwright, testforge:implementation were loaded",
+        "stage": "author"
+      },
+      {
+        "tool": "publish",
+        "category": "review",
+        "reason": "An independent review of your changes found 1 blocking problem(s).",
+        "stage": "review"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1,
+      "review": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_checks": 1,
+      "self_check": 1
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.6559182,
+    "inputTokens": 675166,
+    "outputTokens": 3678
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.32394239999999996,
+      "inputTokens": 88,
+      "cacheReadTokens": 480127,
+      "cacheCreationTokens": 44877,
+      "outputTokens": 159,
+      "responses": 11
+    }
+  },
+  "startedAt": "2026-11-20T11:02:25.014Z",
+  "finishedAt": "2026-11-20T11:04:48.456Z"
+}
