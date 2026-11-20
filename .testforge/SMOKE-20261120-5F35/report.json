@@ -1,0 +1,282 @@
+{
+  "status": "succeeded",
+  "workflow": "smoke",
+  "ticketKey": "SMOKE-20261120-5F35",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/smoke-20261120-5f35-smoke-check-a-deployment-8n75",
+  "frameworks": [
+    "playwright"
+  ],
+  "strategy": {
+    "summary": "Kettle & Co. has no smoke suite. Add one Playwright file, tests/smoke/shop.smoke.spec.js, with five fast read-only tests tagged @smoke that check the shop's critical paths through the configured baseURL: the health endpoint, the catalogue, a product page, adding to the cart (the cart is a browser cookie, so this writes nothing on the server) and reaching checkout with the order form. Placing an order is the only write (POST /orders), so it is left out.",
+    "inScope": [
+      "GET /health",
+      "Catalogue home page (/)",
+      "Product page reached from the catalogue",
+      "Adding to the cookie-held cart and seeing it on /cart",
+      "Checkout page with the order form, not submitted"
+    ],
+    "outOfScope": [
+      "Placing an order (POST /orders) and the confirmation page, because it creates an order on the server",
+      "Validation, 404/405 and error pages (left to the fuller suite)"
+    ],
+    "assumptions": [
+      "The catalogue is hard-coded in src/catalogue.js (PRODUCTS), so every deployed build shows the same products. The tests import PRODUCTS rather than copying names and prices.",
+      "Add to cart only writes the `cart` cookie in the browser (public/app.js). It sends no request and changes nothing on the server, so it counts as read-only. The checkout test sets the cart cookie through the browser context and does not submit the form.",
+      "Nothing is faked: the tests use the real app at the configured baseURL (BASE_URL, or the local server that playwright.config.js starts).",
+      "The shop has no sign-in, so the tests use no account."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "A deploy whose catalogue or product pages are broken still answers /health",
+        "impact": "high",
+        "mitigation": "Page tests assert on headings, links and prices that only a working render produces"
+      },
+      {
+        "description": "A smoke test writes to production",
+        "impact": "high",
+        "mitigation": "No test submits a form or sends a non-GET request. The cart lives only in the test's own browser context."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "The deployed app is up: GET /health answers 200 with {status: 'ok'}",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "The catalogue home page lists every product with a link and its price",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "A user can open a product page from the catalogue and see its name, price and an Add to cart button",
+        "derived": true
+      },
+      {
+        "id": "AC4",
+        "text": "A user can add a product to the cart and see it in the cart with the right total",
+        "derived": true
+      },
+      {
+        "id": "AC5",
+        "text": "A user with items in the cart can reach checkout and see the order form",
+        "derived": true
+      },
+      {
+        "id": "AC6",
+        "text": "Each smoke test is tagged @smoke in its title, reaches the app only through the configured baseURL and only reads",
+        "derived": true,
+        "metBy": "Every test in tests/smoke/shop.smoke.spec.js has @smoke in its title, uses relative paths against Playwright's baseURL, and sends only GET requests"
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "health endpoint reports the shop is up @smoke",
+        "level": "api",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "GET /health with the request fixture"
+        ],
+        "expected": "Status 200, and the JSON body equals {status:'ok'}",
+        "testData": "",
+        "targetFile": "tests/smoke/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the app starts and answers"
+      },
+      {
+        "id": "TC2",
+        "title": "catalogue lists every product with its price @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Open /",
+          "For each product in PRODUCTS, find the link with its exact name, and the list item's price"
+        ],
+        "expected": "The heading 'Our teaware' is shown, each product link points to /products/<id>, and its list item shows formatPrice(priceCents)",
+        "testData": "PRODUCTS from src/catalogue.js",
+        "targetFile": "tests/smoke/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the shop's landing page renders its products"
+      },
+      {
+        "id": "TC3",
+        "title": "product page opens from the catalogue @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Open /",
+          "Click the link of the first product"
+        ],
+        "expected": "The URL is /products/<id>, the h1 is the product's name, and its price and an 'Add to cart' button are visible",
+        "testData": "PRODUCTS[0]",
+        "targetFile": "tests/smoke/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: a user can reach a product"
+      },
+      {
+        "id": "TC4",
+        "title": "adding a product shows it in the cart @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [
+          "A fresh browser context, so the cart is empty"
+        ],
+        "steps": [
+          "Open /products/<id>",
+          "Click Add to cart",
+          "Click the Cart link"
+        ],
+        "expected": "The status says 'Added to your cart', the cart link reads 'Cart (1)', and /cart shows the product's row and a total equal to its price",
+        "testData": "PRODUCTS[0]",
+        "targetFile": "tests/smoke/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the cart works. It is cookie-only, so nothing is written on the server"
+      },
+      {
+        "id": "TC5",
+        "title": "checkout shows the order form for the cart @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC5"
+        ],
+        "preconditions": [
+          "The cart cookie holds one product, set through the browser context"
+        ],
+        "steps": [
+          "Open /cart",
+          "Click 'Go to checkout'"
+        ],
+        "expected": "The 'Checkout' heading, the Name, Email and Address fields and the 'Place order' button are visible. The form is not submitted.",
+        "testData": "PRODUCTS[0]",
+        "targetFile": "tests/smoke/shop.smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: a user can reach checkout. The order itself is left out because it writes data"
+      }
+    ],
+    "environmentNotes": "The tests run against BASE_URL when it is set. Otherwise playwright.config.js starts node src/server.js on 4175. Run only the smoke tests with: npx playwright test --grep @smoke"
+  },
+  "results": [],
+  "files": [
+    {
+      "path": "package.json",
+      "status": "modified"
+    },
+    {
+      "path": "tests/smoke/AGENTS.md",
+      "status": "added"
+    },
+    {
+      "path": "tests/smoke/shop.smoke.spec.js",
+      "status": "added"
+    }
+  ],
+  "review": [
+    {
+      "file": "tests/smoke/shop.smoke.spec.js",
+      "line": 59,
+      "standard": "Playwright rules: never use CSS selectors; e2e: find elements by role/accessible name or an existing test id, else add a follow-up for a test id",
+      "severity": "follow_up",
+      "summary": "The cart total is found with the CSS id selector `page.locator('#total')`. The app gives that element no role or test id, and no follow-up asks for one.",
+      "failureScenario": "In src/pages.js:58 the total is `<strong id=\"total\">`, which has no role, name or data-testid. If a markup change renames or drops that id while the total still shows correctly (for example 'Total: £34.00' with a different id), the smoke test fails and blocks a deploy of a working build. tests/checkout.spec.js already uses the same id, so the locator follows the repo's habit, but a follow-up should give the total a test id or an accessible name (for example an `aria-labelledby` label).",
+      "id": "R1.1",
+      "round": 1,
+      "status": "follow_up"
+    },
+    {
+      "file": "tests/smoke/shop.smoke.spec.js",
+      "line": 40,
+      "standard": "Writing a smoke suite: fail with a reason a person can act on (assertion messages that name the critical path)",
+      "severity": "follow_up",
+      "summary": "Most assertions in the product page and checkout tests have no message naming the critical path, and neither do the heading, status and cart link checks in the cart test. Only the health test and some catalogue and cart checks have one.",
+      "failureScenario": "If a deployed build renders the checkout without the order form, the smoke run fails with a bare Playwright message such as `expect(locator).toBeVisible()` for getByLabel('Name'). It doesn't say 'checkout should show the order form', so the person deciding whether to deploy has to read the spec to know which critical path broke. The same gap is at lines 40-45 and 64-75.",
+      "id": "R1.2",
+      "round": 1,
+      "status": "resolved"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "run_command",
+      "run_checks",
+      "self_check",
+      "request_review",
+      "self_check",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "tests/smoke/shop.smoke.spec.js written before testforge:api, testforge:playwright were loaded",
+        "stage": "author"
+      },
+      {
+        "tool": "run_command",
+        "category": "command",
+        "reason": "The test:smoke script runs tests, and this run writes a smoke suite for http://host.docker.internal:57032, which isn't marked disposable, without running it.",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1,
+      "command": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_command": 1,
+      "run_checks": 1,
+      "self_check": 2,
+      "request_review": 1
+    },
+    "subagentCalls": 0
+  },
+  "usage": {
+    "costUsd": 1.2160432,
+    "inputTokens": 1068121,
+    "outputTokens": 7586
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.423237,
+      "inputTokens": 94,
+      "cacheReadTokens": 609255,
+      "cacheCreationTokens": 59538,
+      "outputTokens": 166,
+      "responses": 14
+    }
+  },
+  "startedAt": "2026-11-20T16:57:54.441Z",
+  "finishedAt": "2026-11-20T17:00:56.571Z"
+}
