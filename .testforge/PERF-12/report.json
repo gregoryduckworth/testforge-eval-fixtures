@@ -1,0 +1,287 @@
+{
+  "status": "succeeded",
+  "workflow": "ticket",
+  "ticketKey": "PERF-12",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/perf-12-the-order-page-has-got-slow-ss8o",
+  "frameworks": [
+    "k6"
+  ],
+  "strategy": {
+    "summary": "GET /orders/:id got slower when commit 62d8c6f (\"Show each line's product name on an order\") was added. In src/app.js:33 that commit calls findProduct() once for each line, one after another. Every store query is a simulated round trip of 6–9 ms (src/store.js), and an order has 8 lines, so the page now makes 10 sequential queries where it used to make 2: findOrder + orderLines ≈ 15–18 ms before, ≈ 75–90 ms now. That matches the reported change from about 22 to 88 ms p95. The plan is to guard the detail scenario in perf/orders.js with a scenario-scoped k6 threshold that fails while the page stays this slow, and to record the N+1 query as a defect for the API team. The application is not changed.",
+    "inScope": [
+      "perf/orders.js: thresholds scoped to the detail scenario (p95, p99, error rate)",
+      "Request name tag on the detail request so /orders/:id is aggregated as one URL",
+      "Defect record of the N+1 product lookup"
+    ],
+    "outOfScope": [
+      "Changing src/ (the fix belongs to the API team, per the ticket)",
+      "perf/search.js and the list scenario's limits (the ticket says both are fine)"
+    ],
+    "assumptions": [
+      "Q1: the reviewer left the limits to me. The detail scenario gets p(95)<40 and p(99)<50 (ms). Healthy is about 22/25 ms, so that leaves room for CI noise, and it fails at today's 88/92 ms.",
+      "The app runs for real from `npm start` on BASE_URL (default http://localhost:4310), as .testforge.yml configures. Nothing is faked.",
+      "I can't read git history in this environment. The culprit commit is identified from its message (62d8c6f) and from the code it describes: the per-line findProduct loop in src/app.js:33, while orderLines already returns each line in one query (src/store.js:46).",
+      "TestForge's counted runs use smoke mode with --no-thresholds, so they prove the script runs and its checks pass. They do not prove the threshold breaches. That will be shown with a full `k6 run perf/orders.js` through run_command if the app is reachable."
+    ],
+    "openQuestions": [
+      "Should the generic http_req_duration p(95)<2000 stay as a global ceiling? I plan to keep it unchanged."
+    ],
+    "risks": [
+      {
+        "description": "A threshold set too tight would flake on slower CI runners even after the fix",
+        "impact": "medium",
+        "mitigation": "The limits are about 1.8× the healthy p95 and 2× the healthy p99, and about half the current values"
+      },
+      {
+        "description": "An unscoped threshold would mix list and detail latency and hide the regression",
+        "impact": "high",
+        "mitigation": "Thresholds use the {scenario:detail} tag"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "The change that slowed GET /orders/:id is identified, along with what in it costs the time",
+        "derived": false,
+        "metBy": "Recorded in the defect and the PR notes: commit 62d8c6f added a sequential findProduct round trip per order line (src/app.js:33), so 8 extra queries per request"
+      },
+      {
+        "id": "AC2",
+        "text": "perf/orders.js has a k6 threshold on the order page (detail scenario) that fails while p95/p99 stay near 88/92 ms",
+        "derived": false
+      },
+      {
+        "id": "AC3",
+        "text": "The application is not changed, and the slowdown is recorded as a defect",
+        "derived": false,
+        "metBy": "No file under src/ changes; record_defect is called with perf/orders.js"
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "fails the load script while the order page is slower than 40 ms p95 / 50 ms p99",
+        "level": "performance",
+        "framework": "k6",
+        "type": "regression",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "App running at BASE_URL"
+        ],
+        "steps": [
+          "Add thresholds 'http_req_duration{scenario:detail}': ['p(95)<40','p(99)<50'] and 'http_req_failed{scenario:detail}': ['rate<0.01']",
+          "Tag the detail request name 'GET /orders/:id' and check status 200 and that every line has a productName",
+          "Run k6 run perf/orders.js against the current app"
+        ],
+        "expected": "The detail checks pass. Against the current app the detail p95/p99 thresholds are breached and k6 exits non-zero (99). The smoke run with thresholds off passes.",
+        "testData": "Order ids 1–60 from the seeded store",
+        "targetFile": "perf/orders.js",
+        "automate": true,
+        "rationale": "This is the guard the ticket asks for, scoped so the list scenario can't dilute it"
+      }
+    ],
+    "environmentNotes": "The app starts with npm start on port 4310 (.testforge.yml), with BASE_URL overriding it. k6 has to be installed."
+  },
+  "results": [
+    {
+      "framework": "k6",
+      "command": "k6 run --vus 1 --iterations 1 --no-thresholds --quiet --summary-export /data/workspaces/a040bad7-8f79-4a13-b326-d2fc3a6b672d/reports/attempt-2/k6-0/k6-0.json -e BASE_URL=http://localhost:4310 perf/orders.js",
+      "exitCode": 0,
+      "durationMs": 164,
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "total": 3,
+      "cases": [
+        {
+          "title": "lists the orders",
+          "file": "perf/orders.js",
+          "status": "passed"
+        },
+        {
+          "title": "returns the order",
+          "file": "perf/orders.js",
+          "status": "passed"
+        },
+        {
+          "title": "names the product on every line",
+          "file": "perf/orders.js",
+          "status": "passed"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "perf/orders.js",
+      "status": "modified"
+    }
+  ],
+  "defects": [
+    {
+      "title": "GET /orders/:id makes one sequential product query per line (N+1), about 4× slower",
+      "testCaseId": "TC1",
+      "file": "perf/orders.js",
+      "description": "AC1/AC3: commit 62d8c6f (\"Show each line's product name on an order\") added `for (const line of items) line.productName = (await findProduct(line.productId)).name;` at src/app.js:33. Every store call is a round trip of 6–9 ms (src/store.js ROUND_TRIP_MS + JITTER_MS), and every order has 8 lines. The order page used to make 2 queries (findOrder, orderLines) and now makes 10, one after another: about 15–18 ms before, about 75–90 ms now. That matches the reported change from 22/25 to 88/92 ms p95/p99. Expected: the product names come back in the existing orderLines query, or in one batched lookup. The detail scenario in perf/orders.js now has thresholds p(95)<40 and p(99)<50, which fail while this stays. k6 has no expected-to-fail mechanism, and TestForge's smoke runs use --no-thresholds, so the script itself passes in smoke mode.",
+      "evidence": "Smoke run of perf/orders.js: GET /orders took 12 ms and GET /orders/:id took 84.98 ms in the same iteration. The code path is src/app.js:33, with 8 awaited findProduct round trips per request."
+    }
+  ],
+  "review": [
+    {
+      "file": "perf/orders.js",
+      "line": 49,
+      "standard": "k6: Relying on checks for pass/fail — a test with passing checks but no thresholds always exits 0 (test-k6 anti-patterns); General: assert meaningful outcomes",
+      "severity": "blocking",
+      "summary": "The new 'names the product on every line' check has no threshold behind it (no `checks` / `checks{scenario:detail}` entry in options.thresholds), so a full `k6 run perf/orders.js` exits 0 even when the check fails on every request.",
+      "failureScenario": "The API team 'fixes' PERF-12 by dropping the per-line findProduct loop at src/app.js:33 (reverting 62d8c6f) instead of batching it. GET /orders/:id goes back to 2 round trips (~22 ms p95), returns 200 with no productName on any line. Then http_req_duration{scenario:detail} and http_req_failed{scenario:detail} both pass, the check fails 100% of the time, and k6 still exits 0. The guard passes while the order page has lost the behaviour that TC1's steps say this check protects. Adding e.g. `'checks{scenario:detail}': ['rate==1']` (or `checks: ['rate>0.99']`) next to lines 28–29 would make the check's failure fail the run.",
+      "id": "R1.1",
+      "round": 1,
+      "status": "resolved"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "ask_human",
+      "submit_strategy",
+      "run_command",
+      "report_environment_issue",
+      "run_tests",
+      "run_tests_scratch",
+      "run_tests",
+      "record_defect",
+      "run_checks",
+      "self_check",
+      "self_check",
+      "remember",
+      "remember",
+      "publish",
+      "run_tests",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Edit",
+        "category": "standards",
+        "reason": "perf/orders.js written before testforge:implementation were loaded",
+        "stage": "author"
+      },
+      {
+        "tool": "publish",
+        "category": "review",
+        "reason": "An independent review of your changes found 1 blocking problem(s).",
+        "stage": "review"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1,
+      "review": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "ask_human": 1,
+      "run_command": 1,
+      "report_environment_issue": 1,
+      "run_tests_scratch": 1,
+      "record_defect": 1,
+      "run_checks": 1,
+      "self_check": 2,
+      "remember": 2
+    },
+    "subagentCalls": 0
+  },
+  "questions": [
+    {
+      "id": "Q1",
+      "question": "For the order page guard in perf/orders.js, what limits should the `detail` scenario's threshold use? Healthy is about 22 ms p95 / 25 ms p99 and today it is about 88 / 92 ms.",
+      "assumption": "I'll scope the threshold to the detail scenario only, with p(95)<40 and p(99)<50. That leaves room above the healthy numbers for CI noise and fails clearly at today's 88/92 ms.",
+      "stage": "strategy",
+      "answer": "No preference from the reviewer: decide yourself from the code, record the decision as an assumption and carry on."
+    }
+  ],
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": [
+      {
+        "kind": "pitfall",
+        "text": "TestForge's k6 smoke run (`--vus 1 --iterations 1`) replaces `options.scenarios`, so a script whose scenarios only use `exec` functions fails with \"function 'default' not found\". perf/orders.js now has a default export that runs list() and detail() once. Give any new perf script with exec-only scenarios one too.",
+        "evidence": "PERF-12 first counted run: exit 104, \"executor default: function 'default' not found in exports\" for perf/orders.js",
+        "source": {
+          "runId": "a040bad7-8f79-4a13-b326-d2fc3a6b672d",
+          "ticketKey": "PERF-12"
+        }
+      },
+      {
+        "kind": "setup",
+        "text": "run_command doesn't start the app, so a full `k6 run perf/<script>.js` (thresholds on) gets connection refused on :4310. Only run_tests starts it (via .testforge.yml), and only in smoke mode with --no-thresholds. Read latency from the smoke summary's per-request http_req_duration.",
+        "evidence": "PERF-12: run_command `k6 run perf/orders.js` gave connection refused; run_tests smoke run served requests",
+        "source": {
+          "runId": "a040bad7-8f79-4a13-b326-d2fc3a6b672d",
+          "ticketKey": "PERF-12"
+        }
+      }
+    ]
+  },
+  "usage": {
+    "costUsd": 1.1029176,
+    "inputTokens": 1292951,
+    "outputTokens": 6373
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.5319986,
+      "inputTokens": 104,
+      "cacheReadTokens": 953238,
+      "cacheCreationTokens": 66875,
+      "outputTokens": 328,
+      "responses": 19
+    }
+  },
+  "startedAt": "2026-11-20T15:49:09.167Z",
+  "finishedAt": "2026-11-20T15:52:18.074Z"
+}
