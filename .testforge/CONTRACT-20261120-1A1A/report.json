@@ -1,0 +1,376 @@
+{
+  "status": "succeeded",
+  "workflow": "contract",
+  "ticketKey": "CONTRACT-20261120-1A1A",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/contract-20261120-1a1a-keep-api-tests-in-step-with-th-ibt2",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "The Orders API spec added POST /orders/{id}/cancel (cancelOrder) and changed GET /orders/{id} (getOrder): the 200 body now carries `total` {amount, currency} instead of `totalCents`, and `status` may be `cancelled`. The existing getOrder test asserts the old `totalCents` shape; it must assert the new `total` object, and new tests must cover cancelOrder's 200, 404 and 409 responses and the `cancelled` status on getOrder.",
+    "inScope": [
+      "test/orders.test.js: update the getOrder 200 test to the new Order schema (only the totalCents -> total change)",
+      "New tests for POST /orders/{id}/cancel: 200, 404, 409",
+      "New getOrder case for status `cancelled`"
+    ],
+    "outOfScope": [
+      "Other operations (listProducts, getProduct, placeOrder), which the spec did not change",
+      "Stock restoration after a cancel: the spec doesn't document it",
+      "Restructuring the existing server setup into a shared helper (not needed by this ticket; listed as a follow-up)"
+    ],
+    "assumptions": [
+      "Tests run the real app in-process (createApp() on port 0, as test/orders.test.js already does); nothing is faked.",
+      "Each test places its own order to get a fresh id; the store is per-app so ids are not shared across files.",
+      "The currency for every order is USD (src/store.js sets currency 'USD'); the amount is priceCents × quantity, which the request determines (Kettle 2499 × 2 = 4998)."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "The existing getOrder test keeps asserting totalCents and fails, or is loosened so it no longer checks the total",
+        "impact": "high",
+        "mitigation": "TC1 keeps the exact toEqual on the whole body, with total {amount: 4998, currency: 'USD'} in place of totalCents"
+      },
+      {
+        "description": "cancelOrder's error responses are untested so a regression in the 409 guard (double cancel) goes unnoticed",
+        "impact": "medium",
+        "mitigation": "TC4 and TC5 assert the 404 and 409 statuses and the Error body shape"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "GET /orders/{id} returns 200 with an Order whose `total` is an object {amount: integer, currency: USD|EUR} and which has no `totalCents`",
+        "derived": false
+      },
+      {
+        "id": "AC2",
+        "text": "GET /orders/{id} returns status `cancelled` for an order that was cancelled",
+        "derived": false
+      },
+      {
+        "id": "AC3",
+        "text": "POST /orders/{id}/cancel on a placed order returns 200 with the Order, status `cancelled`",
+        "derived": false
+      },
+      {
+        "id": "AC4",
+        "text": "POST /orders/{id}/cancel for an unknown id returns 404 with an Error body {error: string}",
+        "derived": false
+      },
+      {
+        "id": "AC5",
+        "text": "POST /orders/{id}/cancel on an already cancelled order returns 409 with an Error body {error: string}",
+        "derived": false
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "returns an order with its total",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "App running in-process"
+        ],
+        "steps": [
+          "Place an order for product 1, quantity 2",
+          "GET /orders/{id}"
+        ],
+        "expected": "200, application/json, body equals {id, productId: 1, quantity: 2, status: 'placed', total: {amount: 4998, currency: 'USD'}} (no totalCents)",
+        "testData": "productId 1 (Kettle, 2499), quantity 2",
+        "targetFile": "test/orders.test.js",
+        "automate": true,
+        "rationale": "getOrder (GET /orders/{id}): response 200 replaced totalCents with required total object; the existing test at test/orders.test.js:48 asserted the old contract."
+      },
+      {
+        "id": "TC2",
+        "title": "reports a cancelled order as cancelled",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "App running in-process"
+        ],
+        "steps": [
+          "Place an order for product 3, quantity 1",
+          "POST /orders/{id}/cancel",
+          "GET /orders/{id}"
+        ],
+        "expected": "200, body equals {id, productId: 3, quantity: 1, status: 'cancelled', total: {amount: 699, currency: 'USD'}}",
+        "testData": "productId 3 (Mug, 699), quantity 1",
+        "targetFile": "test/orders.test.js",
+        "automate": true,
+        "rationale": "getOrder (GET /orders/{id}): status now allows `cancelled`, which a caller sees after a cancel."
+      },
+      {
+        "id": "TC3",
+        "title": "cancels a placed order",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "App running in-process"
+        ],
+        "steps": [
+          "Place an order for product 3, quantity 2",
+          "POST /orders/{id}/cancel"
+        ],
+        "expected": "200, application/json, body equals {id, productId: 3, quantity: 2, status: 'cancelled', total: {amount: 1398, currency: 'USD'}}",
+        "testData": "productId 3, quantity 2",
+        "targetFile": "test/orders.test.js",
+        "automate": true,
+        "rationale": "cancelOrder (POST /orders/{id}/cancel) added: success response."
+      },
+      {
+        "id": "TC4",
+        "title": "is 404 when cancelling an unknown order",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [
+          "App running in-process"
+        ],
+        "steps": [
+          "POST /orders/999/cancel"
+        ],
+        "expected": "404, body {error: any string}",
+        "testData": "id 999 (never placed)",
+        "targetFile": "test/orders.test.js",
+        "automate": true,
+        "rationale": "cancelOrder added: documented 404 NotFound response."
+      },
+      {
+        "id": "TC5",
+        "title": "is 409 when cancelling an order that is already cancelled",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC5"
+        ],
+        "preconditions": [
+          "App running in-process"
+        ],
+        "steps": [
+          "Place an order for product 3, quantity 1",
+          "POST /orders/{id}/cancel (expect 200)",
+          "POST /orders/{id}/cancel again"
+        ],
+        "expected": "409, body {error: any string}",
+        "testData": "productId 3, quantity 1",
+        "targetFile": "test/orders.test.js",
+        "automate": true,
+        "rationale": "cancelOrder added: documented 409 conflict response for an already cancelled order."
+      }
+    ],
+    "environmentNotes": "No external services: vitest starts the app in-process with createApp() on an OS-chosen port."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/orders.test.js --reporter=json --outputFile=/data/workspaces/1a1ad9db-c424-4deb-a351-5afd3ed67b09/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 513,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "total": 10,
+      "cases": [
+        {
+          "title": "POST /orders places an order",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 23.147200999999995
+        },
+        {
+          "title": "POST /orders refuses a quantity under one",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 2.100863000000004
+        },
+        {
+          "title": "POST /orders is 404 for an unknown product",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 1.167428000000001
+        },
+        {
+          "title": "POST /orders is 409 when the stock is short",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 1.1144710000000089
+        },
+        {
+          "title": "GET /orders/{id} returns an order with its total",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 2.2244019999999978
+        },
+        {
+          "title": "GET /orders/{id} reports a cancelled order as cancelled",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 6.458917999999983
+        },
+        {
+          "title": "GET /orders/{id} is 404 for an unknown order",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 0.9717670000000282
+        },
+        {
+          "title": "POST /orders/{id}/cancel cancels a placed order",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 1.6127919999999847
+        },
+        {
+          "title": "POST /orders/{id}/cancel is 404 when cancelling an unknown order",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 0.6611490000000231
+        },
+        {
+          "title": "POST /orders/{id}/cancel is 409 when cancelling an order that is already cancelled",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 1.305925000000002
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "test/orders.test.js",
+      "status": "modified"
+    }
+  ],
+  "review": [
+    {
+      "file": "test/orders.test.js",
+      "line": 64,
+      "standard": "General test automation standards: Setup and teardown helpers check each response's status and fail with its body; never use an unchecked response",
+      "severity": "follow_up",
+      "summary": "The new tests destructure `id` from `placeOrder(...).json()` without checking the response was 201, so a failed setup surfaces as a misleading failure later in the test.",
+      "failureScenario": "If placing the order fails (e.g. a store change leaves product 3 out of stock), the body is `{error: ...}`, so `id` is undefined. The test then calls `/orders/undefined/cancel`, which falls through to the generic 404 route, and fails on `expect(cancelled.status).toBe(200)` instead of saying that setup failed. The test still fails, so it never passes wrongly. The same unchecked setup is at lines 88 and 111, and in the existing test at line 50. A checked helper (assert status 201 and fail with the body) would fix all four.",
+      "id": "R1.1",
+      "round": 1,
+      "status": "follow_up"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "submit_strategy",
+      "run_checks",
+      "run_tests",
+      "self_check",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "submit_strategy",
+        "category": "standards",
+        "reason": "strategy submitted before testforge:refactor were loaded",
+        "stage": "strategy"
+      },
+      {
+        "tool": "Edit",
+        "category": "standards",
+        "reason": "test/orders.test.js written before testforge:unit, testforge:vitest, testforge:api were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 2
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_checks": 1,
+      "self_check": 1
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.7716498,
+    "inputTokens": 822681,
+    "outputTokens": 2401
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.4029436,
+      "inputTokens": 112,
+      "cacheReadTokens": 573028,
+      "cacheCreationTokens": 56622,
+      "outputTokens": 239,
+      "responses": 12
+    }
+  },
+  "startedAt": "2026-11-20T16:18:47.759Z",
+  "finishedAt": "2026-11-20T16:20:36.297Z"
+}
