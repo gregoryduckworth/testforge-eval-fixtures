@@ -1,0 +1,576 @@
+{
+  "status": "succeeded",
+  "workflow": "ticket",
+  "ticketKey": "ROOM-7",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/room-7-book-meeting-rooms-rc5t",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "createBookings() validates room/owner/start/length, refuses overlapping bookings per room, lists a room's bookings by start, and lets only the owner cancel. Unit tests with Vitest against the real module and its memoryStore prove each rule and its refusal, including a concurrent double-booking check (the clash check and the add are separate awaits).",
+    "inScope": [
+      "book() validation and BookingError messages",
+      "overlap rules incl. concurrent booking",
+      "list() order and room filtering",
+      "cancel() ownership and freeing time"
+    ],
+    "outOfScope": [
+      "the app's database-backed BookingStore (not in the repo)"
+    ],
+    "assumptions": [
+      "Tests use the real createBookings with the default memoryStore; nothing is faked.",
+      "Messages are asserted exactly as src/bookings.ts writes them, since only the message says why a booking was refused."
+    ],
+    "openQuestions": [
+      "Should two simultaneous overlapping requests for the same room both be refused except one? The ticket implies yes; the code checks then adds across an await."
+    ],
+    "risks": [
+      {
+        "description": "Race: two concurrent overlapping bookings both succeed because the clash check and add are separate async steps",
+        "impact": "high",
+        "mitigation": "TC10 books concurrently and expects exactly one success"
+      },
+      {
+        "description": "Off-by-one at boundaries (30/240 minutes, back-to-back)",
+        "impact": "medium",
+        "mitigation": "TC5, TC6, TC9"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "A booking names Atlas, Borealis or Cosmos and an owner, starts on the hour or half hour UTC, and lasts 30–240 minutes in 30-minute steps; otherwise a BookingError says why.",
+        "derived": false
+      },
+      {
+        "id": "AC2",
+        "text": "A booking overlapping another of the same room is rejected; different rooms never clash; a booking may start when another ends.",
+        "derived": false
+      },
+      {
+        "id": "AC3",
+        "text": "A room's bookings are listed by start time.",
+        "derived": false
+      },
+      {
+        "id": "AC4",
+        "text": "Only the booking's owner can cancel it, and cancelling frees its time.",
+        "derived": false
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "books each of the rooms Atlas, Borealis and Cosmos",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "book each room 09:00 for 60 min"
+        ],
+        "expected": "booking returned with room, owner, start, end",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "every valid room"
+      },
+      {
+        "id": "TC2",
+        "title": "refuses a room that is not Atlas, Borealis or Cosmos, naming it",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "book 'atlas' (wrong case)"
+        ],
+        "expected": "BookingError 'There is no room called \"atlas\".'",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "room refusal"
+      },
+      {
+        "id": "TC3",
+        "title": "refuses a booking without the name of the person making it",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "book with owner '' and '   '"
+        ],
+        "expected": "BookingError about the missing name",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "owner refusal"
+      },
+      {
+        "id": "TC4",
+        "title": "refuses a start that is not on the hour or the half hour",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "book at 09:15, 09:00:30, invalid date"
+        ],
+        "expected": "BookingError about the start",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "start refusal"
+      },
+      {
+        "id": "TC5",
+        "title": "accepts bookings of 30 minutes and of 4 hours starting on the half hour",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "book 09:30 for 30 and 240 min in different rooms"
+        ],
+        "expected": "ends at 10:00 and 13:30",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "length boundaries"
+      },
+      {
+        "id": "TC6",
+        "title": "refuses lengths outside 30 minutes to 4 hours or not in steps of 30",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "book with 0, 270, 45, 30.5 minutes"
+        ],
+        "expected": "BookingError about the length",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "length refusal"
+      },
+      {
+        "id": "TC7",
+        "title": "refuses a booking that overlaps another of the same room",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Atlas 09:00-10:00 booked"
+        ],
+        "steps": [
+          "book Atlas 09:30 for 60"
+        ],
+        "expected": "BookingError naming the clash; list holds only the first",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "core rule"
+      },
+      {
+        "id": "TC8",
+        "title": "books different rooms for the same time",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Atlas 09:00-10:00 booked"
+        ],
+        "steps": [
+          "book Borealis 09:00 for 60"
+        ],
+        "expected": "succeeds",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "no cross-room clash"
+      },
+      {
+        "id": "TC9",
+        "title": "books a room starting exactly when its previous booking ends",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "Atlas 09:00-10:00 booked"
+        ],
+        "steps": [
+          "book Atlas 10:00 for 30"
+        ],
+        "expected": "succeeds",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "boundary"
+      },
+      {
+        "id": "TC10",
+        "title": "accepts only one of two overlapping bookings made at the same time",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Promise.allSettled two overlapping Atlas bookings"
+        ],
+        "expected": "one fulfilled, one rejected with BookingError; list has one",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "race risk"
+      },
+      {
+        "id": "TC11",
+        "title": "lists a room's bookings by start time",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "book Atlas 14:00, 09:00, 11:00 and Cosmos 10:00",
+          "list Atlas"
+        ],
+        "expected": "Atlas bookings 09,11,14 only",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "ordering"
+      },
+      {
+        "id": "TC12",
+        "title": "the person who made a booking cancels it and frees its time",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [
+          "Atlas 09:00 booked by ada"
+        ],
+        "steps": [
+          "ada cancels",
+          "list",
+          "book Atlas 09:00 by bob"
+        ],
+        "expected": "list empty after cancel; rebooking succeeds",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "cancel"
+      },
+      {
+        "id": "TC13",
+        "title": "refuses a cancellation by someone other than the person who made the booking",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "security",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [
+          "Atlas 09:00 booked by ada"
+        ],
+        "steps": [
+          "bob cancels"
+        ],
+        "expected": "BookingError; booking still listed",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "permission"
+      },
+      {
+        "id": "TC14",
+        "title": "refuses to cancel a booking that does not exist",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "low",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [],
+        "steps": [
+          "cancel id 99"
+        ],
+        "expected": "BookingError 'There is no booking 99.'",
+        "testData": "",
+        "targetFile": "test/booking-rules.test.ts",
+        "automate": true,
+        "rationale": "refusal"
+      }
+    ],
+    "environmentNotes": "None; pure in-memory unit tests run by `npm test`."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/booking-rules.test.ts --reporter=json --outputFile=/data/workspaces/307eb236-c55a-4a16-8ee8-9419cd9035fd/reports/attempt-1/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 335,
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0,
+      "total": 22,
+      "cases": [
+        {
+          "title": "book books each of the rooms Atlas, Borealis and Cosmos",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 1.5272899999999936
+        },
+        {
+          "title": "book books each of the rooms Atlas, Borealis and Cosmos",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.1829010000000011
+        },
+        {
+          "title": "book books each of the rooms Atlas, Borealis and Cosmos",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.13907199999999875
+        },
+        {
+          "title": "book refuses a room that is not Atlas, Borealis or Cosmos, naming it",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.9602950000000021
+        },
+        {
+          "title": "book refuses a booking without the name of the person making it",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.28464300000000264
+        },
+        {
+          "title": "book refuses a booking without the name of the person making it",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.18665200000000937
+        },
+        {
+          "title": "book refuses a start that is not on the hour or the half hour",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.201233000000002
+        },
+        {
+          "title": "book refuses a start that is not on the hour or the half hour",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.2034410000000122
+        },
+        {
+          "title": "book refuses a start that is not on the hour or the half hour",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.1766939999999977
+        },
+        {
+          "title": "book accepts bookings of 30 minutes and of 4 hours starting on the half hour",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.1974000000000018
+        },
+        {
+          "title": "book refuses lengths outside 30 minutes to 4 hours or not in steps of 30",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.16069499999998982
+        },
+        {
+          "title": "book refuses lengths outside 30 minutes to 4 hours or not in steps of 30",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.12448999999999444
+        },
+        {
+          "title": "book refuses lengths outside 30 minutes to 4 hours or not in steps of 30",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.1355299999999886
+        },
+        {
+          "title": "book refuses lengths outside 30 minutes to 4 hours or not in steps of 30",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.13107300000000066
+        },
+        {
+          "title": "clashes refuses a booking that overlaps another of the same room",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.5464970000000022
+        },
+        {
+          "title": "clashes books different rooms for the same time",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.11107400000000212
+        },
+        {
+          "title": "clashes books a room starting exactly when its previous booking ends",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.09249299999999039
+        },
+        {
+          "title": "clashes accepts only one of two overlapping bookings made at the same time",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 4.542039000000003
+        },
+        {
+          "title": "list lists a room's bookings by start time",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.2047330000000045
+        },
+        {
+          "title": "cancel the person who made a booking cancels it and frees its time",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 1.024082000000007
+        },
+        {
+          "title": "cancel refuses a cancellation by someone other than the person who made the booking",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.32922200000000146
+        },
+        {
+          "title": "cancel refuses to cancel a booking that does not exist",
+          "file": "test/booking-rules.test.ts",
+          "status": "passed",
+          "durationMs": 0.16915299999999434
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "ESLint",
+      "kind": "lint",
+      "command": "eslint --no-warn-ignored --max-warnings 0 test/booking-rules.test.ts",
+      "status": "passed"
+    },
+    {
+      "name": "TypeScript",
+      "kind": "typecheck",
+      "command": "tsc --noEmit --pretty false -p tsconfig.json",
+      "status": "passed"
+    }
+  ],
+  "files": [
+    {
+      "path": "test/booking-rules.test.ts",
+      "status": "added"
+    }
+  ],
+  "defects": [
+    {
+      "title": "Concurrent overlapping bookings of the same room are both accepted",
+      "testCaseId": "TC10",
+      "file": "test/booking-rules.test.ts",
+      "description": "AC2: an overlapping booking of the same room must be rejected. book() awaits store.forRoom() for the clash check and then store.add() separately, so two simultaneous requests (Atlas 09:00-10:00 and 09:30-10:30) both succeed and the room is double-booked.",
+      "evidence": "expected [ 'fulfilled', 'fulfilled' ] to strictly equal [ 'fulfilled', 'rejected' ]",
+      "expectedFailure": "expected [ 'fulfilled', 'fulfilled' ] to strictly equal [ 'fulfilled', 'rejected' ]"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "submit_strategy",
+      "run_tests",
+      "record_defect",
+      "run_tests",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "test/booking-rules.test.ts written before testforge:unit, testforge:vitest, testforge:implementation were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1
+    },
+    "optionalTools": {
+      "record_defect": 1
+    },
+    "subagentCalls": 0
+  },
+  "usage": {
+    "costUsd": 0.5280856999999999,
+    "inputTokens": 321240,
+    "outputTokens": 128
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.27440079999999994,
+      "inputTokens": 60,
+      "cacheReadTokens": 277979,
+      "cacheCreationTokens": 43201,
+      "outputTokens": 128,
+      "responses": 8
+    }
+  },
+  "startedAt": "2026-11-20T11:21:42.214Z",
+  "finishedAt": "2026-11-20T11:23:49.286Z"
+}
