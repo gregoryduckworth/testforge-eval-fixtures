@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:smoke": "playwright test --grep @smoke"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0"

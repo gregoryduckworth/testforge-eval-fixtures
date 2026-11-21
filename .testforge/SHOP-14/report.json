@@ -1,0 +1,519 @@
+{
+  "status": "succeeded",
+  "workflow": "ticket",
+  "ticketKey": "SHOP-14",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/shop-14-write-a-smoke-suite-of-the-cri-76vu",
+  "frameworks": [
+    "playwright"
+  ],
+  "strategy": {
+    "summary": "Add a Playwright smoke suite (tests/smoke.spec.js), every test tagged @smoke in its title, covering the shop's critical paths: health, catalogue, product page, add to cart, cart, checkout and placing an order, plus the refusals on those paths (unknown product, empty cart checkout, empty checkout form). A `test:smoke` script runs only @smoke tests, locally (the config starts the shop) or against a deployed build via BASE_URL.",
+    "inScope": [
+      "Smoke tests of the critical paths with Playwright, tagged @smoke in the title",
+      "A test:smoke npm script that runs only @smoke tests",
+      "Making the local webServer port configurable so an already running dev shop on 4175 isn't reused"
+    ],
+    "outOfScope": [
+      "Changing CI or the deployment pipeline (listed as follow-ups)",
+      "Exhaustive cart/price permutations (not smoke)",
+      "Automated accessibility (axe) scanning: no axe dependency in the repo and the ticket asks for a critical-path smoke suite"
+    ],
+    "assumptions": [
+      "The real shop runs (started by Playwright's webServer locally, or the deployed build at BASE_URL); nothing is faked. The shop has no login/access control.",
+      "Q1 (asked, unanswered): the place-order test runs when the suite starts the shop locally; with BASE_URL set it is skipped unless SMOKE_PLACE_ORDER=1, so production gets no orders. All other smoke tests are read-only or refused before a request leaves the browser.",
+      "Products, names and prices are imported from src/catalogue.js (PRODUCTS, formatPrice), so a deployed build of the same commit matches.",
+      "The cart is a browser cookie, so each test's fresh browser context gives it its own cart; the placed order is identified by a per-attempt customer name shown on the confirmation."
+    ],
+    "openQuestions": [
+      "Q1: should placing an order run against production, staging, or neither? (assumption above)",
+      "Which pipeline step should run `npm run test:smoke` with BASE_URL after each deploy?"
+    ],
+    "risks": [
+      {
+        "description": "A smoke run against production creates real orders",
+        "impact": "high",
+        "mitigation": "TC9 is skipped against a deployed build unless SMOKE_PLACE_ORDER=1; TC8 is refused by the browser before any POST is sent and asserts no POST /orders request was made"
+      },
+      {
+        "description": "Locally the config reuses a dev server already on 4175, testing stale code",
+        "impact": "medium",
+        "mitigation": "webServer uses PORT from E2E_PORT (default 4176, unused by repo scripts)"
+      },
+      {
+        "description": "A page renders but a key element (price, total, cart count) is wrong",
+        "impact": "medium",
+        "mitigation": "Assert exact prices computed from the catalogue, exact cart count and the exact total line"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "The shop reports it is up: GET /health returns 200 with {status: 'ok'}",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "Shoppers can browse the catalogue and open a product page showing its name and price; an unknown product gives a Not found page",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "Shoppers can add a product to the cart and see the cart with its lines and total",
+        "derived": true
+      },
+      {
+        "id": "AC4",
+        "text": "Shoppers can check out and place an order, and get a confirmation; checkout is refused with an empty cart or missing details",
+        "derived": true
+      },
+      {
+        "id": "AC5",
+        "text": "Every smoke test is tagged @smoke in its title and the smoke suite can be run on its own, against a local or deployed build",
+        "derived": false,
+        "metBy": "tests/smoke.spec.js titles all end with @smoke; `npm run test:smoke` runs `playwright test --grep @smoke`, against BASE_URL when set"
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "health check reports the shop is up @smoke",
+        "level": "api",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "Shop running"
+        ],
+        "steps": [
+          "GET /health with the request fixture"
+        ],
+        "expected": "Status 200 and JSON body {status: 'ok'}",
+        "testData": "",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Fastest signal the build is serving"
+      },
+      {
+        "id": "TC2",
+        "title": "catalogue lists every product with its price @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Open /",
+          "For each product in PRODUCTS find its list item by its exact link name"
+        ],
+        "expected": "Heading 'Our teaware'; each product's link is shown and its list item shows formatPrice(priceCents) exactly",
+        "testData": "PRODUCTS from src/catalogue.js",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Entry page of every journey"
+      },
+      {
+        "id": "TC3",
+        "title": "opens a product page from the catalogue @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Open /",
+          "Click the 'Cast-iron teapot' link"
+        ],
+        "expected": "URL /products/teapot, heading 'Cast-iron teapot', price £48.00 and an 'Add to cart' button",
+        "testData": "teapot from PRODUCTS",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Navigation from catalogue to product"
+      },
+      {
+        "id": "TC4",
+        "title": "shows Not found for an unknown product @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "negative",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Open /products/no-such-teapot"
+        ],
+        "expected": "Response status 404 and heading 'Not found'",
+        "testData": "",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Refusal beside the product page"
+      },
+      {
+        "id": "TC5",
+        "title": "adding a product updates the cart count @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "Empty cart (fresh context)"
+        ],
+        "steps": [
+          "Open /products/mugs",
+          "Click 'Add to cart'"
+        ],
+        "expected": "Status reads 'Added to your cart' and the header link reads 'Cart (1)'",
+        "testData": "",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Core add-to-cart interaction (client JS)"
+      },
+      {
+        "id": "TC6",
+        "title": "cart lists the added items and their total @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Add teapot twice and mugs once through the product pages",
+          "Open the cart from the header link"
+        ],
+        "expected": "Teapot row: qty 2, £96.00; mugs row: qty 1, £18.00; total line 'Total: £114.00'; 'Go to checkout' link",
+        "testData": "",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Server reads the cookie cart and prices it"
+      },
+      {
+        "id": "TC7",
+        "title": "checkout with an empty cart offers no order form @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "negative",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [
+          "Empty cart"
+        ],
+        "steps": [
+          "Open /checkout"
+        ],
+        "expected": "Heading 'Checkout', text 'Your cart is empty.', no 'Place order' button",
+        "testData": "",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Refusal for checkout without items"
+      },
+      {
+        "id": "TC8",
+        "title": "checkout refuses to place an order without the shopper's details @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [
+          "Cart with one kettle"
+        ],
+        "steps": [
+          "Add kettle, open /checkout",
+          "Check the summary shows 'Total: £34.00'",
+          "Click 'Place order' with empty fields"
+        ],
+        "expected": "Still on /checkout, Name field reports a missing value, and no POST /orders request was sent",
+        "testData": "",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Refusal beside placing an order; safe in production"
+      },
+      {
+        "id": "TC9",
+        "title": "places an order and shows its confirmation @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [
+          "Local shop, or SMOKE_PLACE_ORDER=1 against a deployed build"
+        ],
+        "steps": [
+          "Add mugs, open checkout",
+          "Fill Name (unique per attempt), Email, Address",
+          "Click 'Place order'"
+        ],
+        "expected": "URL /orders/<id>, heading 'Thank you', text 'Order #<id> is placed: £18.00, on its way to <name>.' and header 'Cart (0)'",
+        "testData": "Name built from testInfo.testId, retry and random suffix",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "The money path"
+      }
+    ],
+    "environmentNotes": "Locally Playwright starts `node src/server.js` with PORT=E2E_PORT (default 4176). With BASE_URL set, tests run against that build; SMOKE_PLACE_ORDER=1 enables the order test there. Run with `npm run test:smoke`."
+  },
+  "results": [
+    {
+      "framework": "playwright",
+      "command": "playwright test tests/smoke.spec.js --reporter=json",
+      "exitCode": 0,
+      "durationMs": 2448,
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0,
+      "total": 9,
+      "cases": [
+        {
+          "title": "health check reports the shop is up @smoke [chromium]",
+          "file": "smoke.spec.js",
+          "status": "passed",
+          "durationMs": 26,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "catalogue lists every product with its price @smoke [chromium]",
+          "file": "smoke.spec.js",
+          "status": "passed",
+          "durationMs": 120,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "opens a product page from the catalogue @smoke [chromium]",
+          "file": "smoke.spec.js",
+          "status": "passed",
+          "durationMs": 123,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "shows Not found for an unknown product @smoke [chromium]",
+          "file": "smoke.spec.js",
+          "status": "passed",
+          "durationMs": 54,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "adding a product updates the cart count @smoke [chromium]",
+          "file": "smoke.spec.js",
+          "status": "passed",
+          "durationMs": 104,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "cart lists the added items and their total @smoke [chromium]",
+          "file": "smoke.spec.js",
+          "status": "passed",
+          "durationMs": 289,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "checkout with an empty cart offers no order form @smoke [chromium]",
+          "file": "smoke.spec.js",
+          "status": "passed",
+          "durationMs": 64,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "checkout refuses to place an order without the shopper's details @smoke [chromium]",
+          "file": "smoke.spec.js",
+          "status": "passed",
+          "durationMs": 183,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "places an order and shows its confirmation @smoke [chromium]",
+          "file": "smoke.spec.js",
+          "status": "passed",
+          "durationMs": 200,
+          "timeoutMs": 30000
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "package.json",
+      "status": "modified"
+    },
+    {
+      "path": "playwright.config.js",
+      "status": "modified"
+    },
+    {
+      "path": "tests/smoke.spec.js",
+      "status": "added"
+    }
+  ],
+  "review": [
+    {
+      "file": "tests/smoke.spec.js",
+      "line": 121,
+      "standard": "General test automation standards: an absence check first asserts on something that must be there; e2e: a refusal test proves the refusal for the reason it sets up",
+      "severity": "blocking",
+      "summary": "TC8 doesn't prove the browser blocked the submit: `validity.valueMissing` is true for any empty required field whether or not the click was refused, and the URL check and the `orderRequests` check run straight after the click, before a submit started by that click would have navigated or fired its request event.",
+      "failureScenario": "Say the form gets `novalidate`, or the button gets `formnovalidate`. The browser then submits the empty form, and the server places an order with no details (server.js:36-40 doesn't validate) and redirects. In the test, `valueMissing` still evaluates to true. `toHaveURL('/checkout')` passes on its first poll because the navigation hasn't committed yet. `orderRequests` is checked synchronously, before the request event arrives. So the test passes while the refusal is broken. A fix: assert the observable effect of a blocked submit (`await expect(name).toBeFocused()`, since the browser focuses the first invalid field), then check that the order summary is still shown before checking that no POST was sent.",
+      "id": "R1.1",
+      "round": 1,
+      "status": "resolved"
+    },
+    {
+      "file": "playwright.config.js",
+      "line": 9,
+      "standard": "follow_up: a claim in a comment the changes add that the files it describes contradict",
+      "severity": "follow_up",
+      "summary": "The comment says that against a deployed build, order-placing tests are skipped unless SMOKE_PLACE_ORDER=1. But the existing tests/checkout.spec.js places an order and has no @places-order tag, so `npm run test:e2e` with BASE_URL set still creates real orders.",
+      "failureScenario": "Someone trusts the comment and runs `BASE_URL=https://prod… npm run test:e2e`. grepInvert drops only @places-order, so checkout.spec.js's 'places an order for what is in the cart' runs and places a real production order. `test:smoke` is safe only because its --grep @smoke leaves out the untagged spec. Fix: tag that test @places-order too, or reword the comment so it only covers @smoke runs.",
+      "id": "R1.2",
+      "round": 1,
+      "status": "follow_up"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "ask_human",
+      "submit_strategy",
+      "run_tests_scratch",
+      "run_checks",
+      "run_tests",
+      "self_check",
+      "run_tests",
+      "run_command",
+      "self_check",
+      "delete_file",
+      "delete_file",
+      "publish",
+      "run_tests",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "tests/smoke.spec.js written before testforge:api, testforge:implementation were loaded",
+        "stage": "author"
+      },
+      {
+        "tool": "delete_file",
+        "category": "input",
+        "reason": "yarn.lock isn't a file the run added: delete_file deletes only those.",
+        "stage": "execute"
+      },
+      {
+        "tool": "publish",
+        "category": "review",
+        "reason": "An independent review of your changes found 1 blocking problem(s).",
+        "stage": "review"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1,
+      "input": 1,
+      "review": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "ask_human": 1,
+      "run_tests_scratch": 1,
+      "run_checks": 1,
+      "self_check": 2,
+      "run_command": 1,
+      "delete_file": 2
+    },
+    "subagentCalls": 0
+  },
+  "questions": [
+    {
+      "id": "Q1",
+      "question": "The smoke suite will run against staging and production (BASE_URL). Placing an order (POST /orders) is the only thing that changes server state. Should the @smoke test that places an order run against deployed builds, including production?",
+      "assumption": "The place-order smoke test runs when the suite starts the shop locally. Against a deployed build (BASE_URL set) it is skipped unless SMOKE_PLACE_ORDER=1 is set, so staging can opt in and production gets no orders. Every other smoke test only reads, or is refused before any request goes out, so it is safe to run anywhere.",
+      "stage": "strategy",
+      "answer": "No preference from the reviewer: decide yourself from the code, record the decision as an assumption and carry on."
+    }
+  ],
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 1.4659242,
+    "inputTokens": 1629997,
+    "outputTokens": 7292
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.6294899999999999,
+      "inputTokens": 106,
+      "cacheReadTokens": 1178180,
+      "cacheCreationTokens": 77662,
+      "outputTokens": 256,
+      "responses": 20
+    }
+  },
+  "startedAt": "2026-11-21T10:00:41.430Z",
+  "finishedAt": "2026-11-21T10:05:28.272Z"
+}
