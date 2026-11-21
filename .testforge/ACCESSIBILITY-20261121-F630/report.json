@@ -1,0 +1,386 @@
+{
+  "status": "succeeded",
+  "workflow": "accessibility",
+  "ticketKey": "ACCESSIBILITY-20261121-F630",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/accessibility-20261121-f630-sweep-for-accessibility-proble-j178",
+  "frameworks": [
+    "playwright"
+  ],
+  "strategy": {
+    "summary": "TestForge's axe scan found / and /contact free of violations and found two new violations: color-contrast on /about and image-alt on /cart. Add axe checks (minor impact or worse) to the existing home and contact specs so those pages stay passing, and record and file each new violation as a defect without changing the app.",
+    "inScope": [
+      "New axe-check test on / in tests/home.spec.js (existing test untouched)",
+      "New axe-check test on /contact in tests/contact.spec.js (existing test untouched)",
+      "Record and file color-contrast on /about",
+      "Record and file image-alt on /cart"
+    ],
+    "outOfScope": [
+      "Fixing the application's violations",
+      "Keyboard and screen reader testing, which axe can't do"
+    ],
+    "assumptions": [
+      "The real static server (node server.js, from playwright.config.js webServer) serves the pages. Nothing is faked.",
+      "@axe-core/playwright 4.14.0 is already a devDependency.",
+      "The checks fail on every impact (minor to critical), since the scan reported pages clean at every impact and the work item names minor as the least."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "A new violation on / or /contact would go unnoticed",
+        "impact": "medium",
+        "mitigation": "The axe checks fail on any violation of minor impact or worse and name each rule and its elements"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "/ has no axe violations of minor impact or worse",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "/contact has no axe violations of minor impact or worse",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "Text on /about meets the minimum colour contrast (axe color-contrast)",
+        "derived": true
+      },
+      {
+        "id": "AC4",
+        "text": "Images on /cart have alternative text (axe image-alt)",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "home page has no axe violations",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "accessibility",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "App served by webServer"
+        ],
+        "steps": [
+          "page.goto('/')",
+          "Wait for the 'Corner Shop' heading",
+          "Run AxeBuilder analyze",
+          "Filter violations to minor, moderate, serious or critical impact"
+        ],
+        "expected": "No violations; a failure lists each rule id and its element targets",
+        "testData": "",
+        "targetFile": "tests/home.spec.js",
+        "automate": true,
+        "rationale": "Guards a page that passes now"
+      },
+      {
+        "id": "TC2",
+        "title": "contact page has no axe violations",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "accessibility",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "App served by webServer"
+        ],
+        "steps": [
+          "page.goto('/contact')",
+          "Wait for the Send button",
+          "Run AxeBuilder analyze",
+          "Filter violations to minor impact or worse"
+        ],
+        "expected": "No violations; a failure lists each rule id and its element targets",
+        "testData": "",
+        "targetFile": "tests/contact.spec.js",
+        "automate": true,
+        "rationale": "Guards a page that passes now"
+      },
+      {
+        "id": "TC3",
+        "title": "color-contrast on /about: small print fails contrast",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "accessibility",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Record the defect with record_defect and file it with file_issue; no test is written"
+        ],
+        "expected": "Defect recorded and issue filed for .small-print (#c7c7c7 on #ffffff, 1.69:1), rendered in public/about.html",
+        "testData": "",
+        "targetFile": "tests/about.spec.js",
+        "automate": false,
+        "rationale": "New serious violation that a person must fix"
+      },
+      {
+        "id": "TC4",
+        "title": "image-alt on /cart: cart images have no alternative text",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "accessibility",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Record the defect with record_defect and file it with file_issue; no test is written"
+        ],
+        "expected": "Defect recorded and issue filed for the two cart item images in public/cart.html lines 19-20",
+        "testData": "",
+        "targetFile": "tests/cart.spec.js",
+        "automate": false,
+        "rationale": "New critical violation that a person must fix"
+      }
+    ],
+    "environmentNotes": "Playwright webServer starts node server.js on port 4174; BASE_URL http://localhost:4174."
+  },
+  "results": [
+    {
+      "framework": "playwright",
+      "command": "playwright test tests/contact.spec.js tests/home.spec.js --reporter=json",
+      "exitCode": 0,
+      "durationMs": 5862,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "total": 4,
+      "cases": [
+        {
+          "title": "sends a message [chromium]",
+          "file": "contact.spec.js",
+          "status": "passed",
+          "durationMs": 596,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "contact page has no axe violations [chromium]",
+          "file": "contact.spec.js",
+          "status": "passed",
+          "durationMs": 1256,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "shows this week’s products [chromium]",
+          "file": "home.spec.js",
+          "status": "passed",
+          "durationMs": 464,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "home page has no axe violations [chromium]",
+          "file": "home.spec.js",
+          "status": "passed",
+          "durationMs": 1318,
+          "timeoutMs": 30000
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "tests/contact.spec.js",
+      "status": "modified"
+    },
+    {
+      "path": "tests/home.spec.js",
+      "status": "modified"
+    },
+    {
+      "path": "tests/axe.js",
+      "status": "added"
+    }
+  ],
+  "defects": [
+    {
+      "title": "color-contrast on /about: small print has insufficient colour contrast",
+      "testCaseId": "TC3",
+      "file": "/about",
+      "description": "AC3: text must meet WCAG minimum contrast (4.5:1 for normal text). axe rule color-contrast (serious) fails on `.small-print` — `<p class=\"small-print\">Orders over $50 ship free within the city.</p>` in public/about.html (line 25, styled by the .small-print rule at line 7). Fix: darken the foreground colour so it reaches at least 4.5:1 on white (e.g. #767676 or darker).",
+      "evidence": "TestForge axe scan: Element has insufficient color contrast of 1.69 (foreground color: #c7c7c7, background color: #ffffff, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1. https://dequeuniversity.com/rules/axe/4.14/color-contrast"
+    },
+    {
+      "title": "image-alt on /cart: cart item images have no alternative text",
+      "testCaseId": "TC4",
+      "file": "/cart",
+      "description": "AC4: images must have alternative text. axe rule image-alt (critical) fails on both cart item images, `li:nth-child(1) > img` and `li:nth-child(2) > img` — `<img src=\"data:image/gif;base64,...\" width=\"48\" height=\"48\">` in public/cart.html lines 19-20 (Blue mug, Dotted notebook). Fix: add an alt attribute; alt=\"\" if the image is decorative (the item name is already in the text), or a description of the product.",
+      "evidence": "TestForge axe scan: Element does not have an alt attribute; aria-label attribute does not exist or is empty; aria-labelledby attribute does not exist...; Element has no title attribute; default semantics not overridden with role=\"none\" or role=\"presentation\". https://dequeuniversity.com/rules/axe/4.14/image-alt"
+    }
+  ],
+  "accessibility": {
+    "scanner": "playwright",
+    "pages": [
+      {
+        "page": "/",
+        "violations": 0,
+        "rules": []
+      },
+      {
+        "page": "/about",
+        "violations": 1,
+        "rules": [
+          "color-contrast"
+        ]
+      },
+      {
+        "page": "/cart",
+        "violations": 1,
+        "rules": [
+          "image-alt"
+        ]
+      },
+      {
+        "page": "/contact",
+        "violations": 0,
+        "rules": []
+      }
+    ],
+    "violations": [
+      {
+        "rule": "color-contrast",
+        "impact": "serious",
+        "page": "/about",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/color-contrast?application=axeAPI",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "elements": [
+          {
+            "target": ".small-print",
+            "html": "<p class=\"small-print\">Orders over $50 ship free within the city.</p>",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.69 (foreground color: #c7c7c7, background color: #ffffff, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ],
+        "elementCount": 1
+      },
+      {
+        "rule": "image-alt",
+        "impact": "critical",
+        "page": "/cart",
+        "help": "Images must have alternative text",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/image-alt?application=axeAPI",
+        "tags": [
+          "cat.text-alternatives",
+          "wcag2a",
+          "wcag111",
+          "section508",
+          "section508.22.a",
+          "TTv5",
+          "TT7.a",
+          "TT7.b",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "ACT",
+          "RGAAv4",
+          "RGAA-1.1.1"
+        ],
+        "elements": [
+          {
+            "target": "li:nth-child(1) > img",
+            "html": "<img src=\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\" width=\"48\" height=\"48\">",
+            "summary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+          },
+          {
+            "target": "li:nth-child(2) > img",
+            "html": "<img src=\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\" width=\"48\" height=\"48\">",
+            "summary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+          }
+        ],
+        "elementCount": 2
+      }
+    ],
+    "errors": [],
+    "head": {
+      "commit": "5697c848193a8fb6ca16a35fa45b8d20147db1b2"
+    },
+    "minImpact": "minor",
+    "newKeys": [
+      "color-contrast\n/about",
+      "image-alt\n/cart"
+    ],
+    "fixed": [],
+    "toGuard": [
+      "/",
+      "/contact"
+    ]
+  },
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "submit_strategy",
+      "run_tests",
+      "record_defect",
+      "record_defect",
+      "run_checks",
+      "self_check",
+      "self_check",
+      "run_tests",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "submit_strategy",
+        "category": "standards",
+        "reason": "strategy submitted before testforge:accessibility, testforge:refactor were loaded",
+        "stage": "strategy"
+      },
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "tests/home.spec.js written before testforge:playwright, testforge:implementation were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 2
+    },
+    "optionalTools": {
+      "recall": 1,
+      "record_defect": 2,
+      "run_checks": 1,
+      "self_check": 2
+    },
+    "subagentCalls": 0
+  },
+  "usage": {
+    "costUsd": 0.7400443000000001,
+    "inputTokens": 823285,
+    "outputTokens": 2012
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.42177440000000005,
+      "inputTokens": 118,
+      "cacheReadTokens": 641062,
+      "cacheCreationTokens": 57486,
+      "outputTokens": 283,
+      "responses": 15
+    }
+  },
+  "startedAt": "2026-11-21T16:38:12.117Z",
+  "finishedAt": "2026-11-21T16:40:09.503Z"
+}
