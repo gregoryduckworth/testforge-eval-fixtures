@@ -1,4 +1,7 @@
+// ACCESSIBILITY-20261121-B150: TC2
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { guardedViolations } from './support/axe.js';
 
 test('sends a message', async ({ page }) => {
   await page.goto('/contact');
@@ -6,4 +9,13 @@ test('sends a message', async ({ page }) => {
   await page.getByLabel('Message').fill('Do you sell green tea?');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.getByRole('status')).toHaveText('Thanks, we will reply within a day.');
+});
+
+test('contact page has no accessibility violations rated minor or worse', async ({ page }) => {
+  await page.goto('/contact');
+  await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
+
+  const results = await new AxeBuilder({ page }).analyze();
+
+  expect(guardedViolations(results)).toEqual([]);
 });
