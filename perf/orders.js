@@ -1,3 +1,4 @@
+// PERFORMANCE-20261122-1D29: TC1
 import http from 'k6/http';
 import { check } from 'k6';
 
@@ -22,6 +23,9 @@ export const options = {
   thresholds: {
     http_req_failed: ['rate<0.01'],
     http_req_duration: ['p(95)<2000'],
+    // detail scenario keeps p95 latency under 26.4 ms: its p95 held at 22 ms over the last good
+    // runs, and this allows 20% headroom over that baseline.
+    'http_req_duration{scenario:detail}': ['p(95)<26.4'],
   },
 };
 
@@ -34,4 +38,11 @@ export function detail() {
   const id = 1 + Math.floor(Math.random() * 60);
   const res = http.get(`${BASE_URL}/orders/${id}`);
   check(res, { 'returns the order': (r) => r.status === 200 });
+}
+
+// A run that overrides the scenarios (e.g. `--vus 1 --iterations 1` as a smoke check) runs the
+// default function: exercise both journeys once. The named scenarios above don't use it.
+export default function () {
+  list();
+  detail();
 }
