@@ -1,0 +1,370 @@
+{
+  "status": "succeeded",
+  "workflow": "gaps",
+  "ticketKey": "GAPS-20261122-0C4F",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/gaps-20261122-0c4f-guard-the-pages-that-pass-with-gay7",
+  "frameworks": [
+    "playwright"
+  ],
+  "strategy": {
+    "summary": "TestForge's axe scan found `/` and `/contact` free of violations at any impact, and no e2e test checks them with axe. Add an axe check (AxeBuilder from the already-installed @axe-core/playwright) as a new test in the existing spec for each page, after the page has loaded, failing on any violation of impact minor or worse and naming each rule, its impact and its elements. Known violations on /about and /cart are left alone; existing tests are unchanged.",
+    "inScope": [
+      "axe check on / in tests/home.spec.js",
+      "axe check on /contact in tests/contact.spec.js",
+      "a small shared helper (tests/support/axe.js) that runs axe and returns the violations at the guarded impacts, used by both specs"
+    ],
+    "outOfScope": [
+      "Known violations color-contrast on /about and image-alt on /cart (earlier runs reported them; a person's to fix)",
+      "Keyboard and screen-reader behaviour, which axe cannot detect"
+    ],
+    "assumptions": [
+      "The app is served by the repo's own webServer (node server.js on port 4174) as the existing specs do; nothing is faked.",
+      "Impacts guarded are minor, moderate, serious and critical (the work item reports minor or worse), so no rule or region is excluded.",
+      "Existing tests stay unchanged; the axe checks are new tests in the same files."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "Axe runs before the page content renders and passes on an empty page",
+        "impact": "medium",
+        "mitigation": "Each check first asserts a visible element of the loaded page (the 'Corner Shop' heading on /, the 'Send' button on /contact) before analysing."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "The home page `/` has no axe violation of impact minor or worse, checked by an e2e test.",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "The contact page `/contact` has no axe violation of impact minor or worse, checked by an e2e test.",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "home page has no accessibility violations of minor impact or worse",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "accessibility",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "App served at baseURL by the Playwright webServer"
+        ],
+        "steps": [
+          "page.goto('/')",
+          "Wait for the 'Corner Shop' heading to be visible",
+          "Run new AxeBuilder({ page }).analyze()",
+          "Keep violations of impact minor, moderate, serious or critical, as rule id, impact and element targets"
+        ],
+        "expected": "The list is empty; on failure it shows each rule id with its impact and element targets.",
+        "testData": "",
+        "targetFile": "tests/home.spec.js",
+        "automate": true,
+        "rationale": "Guards the page found passing so a regression is caught."
+      },
+      {
+        "id": "TC2",
+        "title": "contact page has no accessibility violations of minor impact or worse",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "accessibility",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "App served at baseURL by the Playwright webServer"
+        ],
+        "steps": [
+          "page.goto('/contact')",
+          "Wait for the 'Send' button to be visible",
+          "Run new AxeBuilder({ page }).analyze()",
+          "Keep violations of impact minor, moderate, serious or critical, as rule id, impact and element targets"
+        ],
+        "expected": "The list is empty; on failure it shows each rule id with its impact and element targets.",
+        "testData": "",
+        "targetFile": "tests/contact.spec.js",
+        "automate": true,
+        "rationale": "Guards the page found passing so a regression is caught."
+      }
+    ],
+    "environmentNotes": "Playwright webServer starts `node server.js` on http://localhost:4174 (BASE_URL). @axe-core/playwright 4.14.0 is already a devDependency."
+  },
+  "results": [
+    {
+      "framework": "playwright",
+      "command": "playwright test tests/contact.spec.js tests/home.spec.js --reporter=json",
+      "exitCode": 0,
+      "durationMs": 10638,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "total": 4,
+      "cases": [
+        {
+          "title": "sends a message [chromium]",
+          "file": "contact.spec.js",
+          "status": "passed",
+          "durationMs": 1695,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "contact page has no accessibility violations of minor impact or worse [chromium]",
+          "file": "contact.spec.js",
+          "status": "passed",
+          "durationMs": 3260,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "shows this week’s products [chromium]",
+          "file": "home.spec.js",
+          "status": "passed",
+          "durationMs": 1280,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "home page has no accessibility violations of minor impact or worse [chromium]",
+          "file": "home.spec.js",
+          "status": "passed",
+          "durationMs": 3064,
+          "timeoutMs": 30000
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "tests/contact.spec.js",
+      "status": "modified"
+    },
+    {
+      "path": "tests/home.spec.js",
+      "status": "modified"
+    },
+    {
+      "path": "tests/support/axe.js",
+      "status": "added"
+    }
+  ],
+  "accessibility": {
+    "scanner": "playwright",
+    "pages": [
+      {
+        "page": "/",
+        "violations": 0,
+        "rules": []
+      },
+      {
+        "page": "/about",
+        "violations": 1,
+        "rules": [
+          "color-contrast"
+        ]
+      },
+      {
+        "page": "/cart",
+        "violations": 1,
+        "rules": [
+          "image-alt"
+        ]
+      },
+      {
+        "page": "/contact",
+        "violations": 0,
+        "rules": []
+      }
+    ],
+    "violations": [
+      {
+        "rule": "color-contrast",
+        "impact": "serious",
+        "page": "/about",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/color-contrast?application=axeAPI",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "elements": [
+          {
+            "target": ".small-print",
+            "html": "<p class=\"small-print\">Orders over $50 ship free within the city.</p>",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.69 (foreground color: #c7c7c7, background color: #ffffff, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ],
+        "elementCount": 1
+      },
+      {
+        "rule": "image-alt",
+        "impact": "critical",
+        "page": "/cart",
+        "help": "Images must have alternative text",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/image-alt?application=axeAPI",
+        "tags": [
+          "cat.text-alternatives",
+          "wcag2a",
+          "wcag111",
+          "section508",
+          "section508.22.a",
+          "TTv5",
+          "TT7.a",
+          "TT7.b",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "ACT",
+          "RGAAv4",
+          "RGAA-1.1.1"
+        ],
+        "elements": [
+          {
+            "target": "li:nth-child(1) > img",
+            "html": "<img src=\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\" width=\"48\" height=\"48\">",
+            "summary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+          },
+          {
+            "target": "li:nth-child(2) > img",
+            "html": "<img src=\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\" width=\"48\" height=\"48\">",
+            "summary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+          }
+        ],
+        "elementCount": 2
+      }
+    ],
+    "errors": [],
+    "head": {
+      "commit": "5697c848193a8fb6ca16a35fa45b8d20147db1b2"
+    },
+    "minImpact": "minor",
+    "newKeys": [],
+    "fixed": [],
+    "toGuard": [
+      "/",
+      "/contact"
+    ]
+  },
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "submit_strategy",
+      "run_tests",
+      "run_checks",
+      "self_check",
+      "self_check",
+      "run_tests",
+      "remember",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "submit_strategy",
+        "category": "standards",
+        "reason": "strategy submitted before testforge:accessibility, testforge:refactor were loaded",
+        "stage": "strategy"
+      },
+      {
+        "tool": "Edit",
+        "category": "standards",
+        "reason": "tests/home.spec.js written before testforge:playwright, testforge:implementation were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 2
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_checks": 1,
+      "self_check": 2,
+      "remember": 1
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": [
+      {
+        "kind": "pitfall",
+        "text": "The axe_checks gate in self_check only counts a page as guarded when the spec that opens it calls `new AxeBuilder({ page }).analyze()` itself; running AxeBuilder inside a shared helper module isn't recognised. Keep AxeBuilder in the spec and share only the impact filtering (tests/support/axe.js guardedViolations).",
+        "evidence": "GAPS-20261122-0C4F: self_check flagged / and /contact while AxeBuilder ran in tests/support/axe.js; ready once each spec called AxeBuilder directly.",
+        "source": {
+          "runId": "0c4f89fe-a0d7-4d68-bb45-30ac58134b89",
+          "ticketKey": "GAPS-20261122-0C4F"
+        }
+      }
+    ]
+  },
+  "usage": {
+    "costUsd": 0.6908033,
+    "inputTokens": 871604,
+    "outputTokens": 2135
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.37385579999999996,
+      "inputTokens": 94,
+      "cacheReadTokens": 661699,
+      "cacheCreationTokens": 47408,
+      "outputTokens": 205,
+      "responses": 14
+    }
+  },
+  "startedAt": "2026-11-22T10:37:37.601Z",
+  "finishedAt": "2026-11-22T10:40:15.309Z"
+}
