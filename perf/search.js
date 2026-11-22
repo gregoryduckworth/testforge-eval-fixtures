@@ -1,3 +1,4 @@
+// PERFORMANCE-20261122-579F: TC2
 import http from 'k6/http';
 import { check } from 'k6';
 
@@ -17,6 +18,8 @@ export const options = {
   },
   thresholds: {
     http_req_failed: ['rate<0.01'],
+    // The last good runs held search at p95 14 ms; this allows 20% over that.
+    'http_req_duration{scenario:search}': ['p(95)<16.8'],
   },
 };
 
