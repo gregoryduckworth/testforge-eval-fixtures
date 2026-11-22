@@ -1,0 +1,484 @@
+{
+  "status": "succeeded",
+  "workflow": "regression",
+  "ticketKey": "REGRESSION-20261122-9780",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/regression-20261122-9780-find-regressions-394g",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "Two regressions. formatPrice's new '12.50 USD' output was intended (384b454 'Tidy the money helpers' documents it in CHANGELOG 1.1.0 and the JSDoc), so the test is updated to the new format. shippingFor(5000) now charges 499: b66bd89 'Bump dependencies' refactored shipping into RATES bands using `subtotal > b.over`, which contradicts FREE_SHIPPING_FROM's doc ('this much or more ship free') and the unchanged test; that is a real regression, kept asserting 0, marked it.fails, recorded and filed.",
+    "inScope": [
+      "test/money.test.js formatPrice formats a price in dollars",
+      "test/shipping.test.js shippingFor ships free from $50"
+    ],
+    "outOfScope": [
+      "Fixing src/shipping.js (application code)"
+    ],
+    "assumptions": [
+      "The CHANGELOG 1.1.0 entry states the intended formatPrice output: amount then ISO code, default USD."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "Free shipping exactly at $50 is lost, charging customers 4.99 at the boundary",
+        "impact": "high",
+        "mitigation": "TC2 keeps asserting 0 as an expected failure that flips red once fixed; issue filed"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "formatPrice(cents) shows the amount with two decimals followed by the currency code, USD by default (CHANGELOG 1.1.0)",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "Goods costing $50.00 (5000 cents) or more ship free (FREE_SHIPPING_FROM doc)",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "formats a price in dollars",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "formatPrice(1250)"
+        ],
+        "expected": "'12.50 USD'",
+        "testData": "1250",
+        "targetFile": "test/money.test.js",
+        "automate": true,
+        "rationale": "Outcome: updated. 384b454 'Tidy the money helpers' deliberately changed the format to '12.50 USD', documented in CHANGELOG 1.1.0 and the JSDoc."
+      },
+      {
+        "id": "TC2",
+        "title": "ships free from $50",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "shippingFor(5000)"
+        ],
+        "expected": "0 (currently 499: kept as it.fails, defect recorded and filed)",
+        "testData": "5000",
+        "targetFile": "test/shipping.test.js",
+        "automate": true,
+        "rationale": "Outcome: real regression. b66bd89 'Bump dependencies' (routine upkeep) rewrote shippingFor with RATES bands using `subtotal > b.over`, so exactly 5000 no longer ships free, contradicting FREE_SHIPPING_FROM's doc 'this much or more'."
+      }
+    ],
+    "environmentNotes": "None; pure unit tests via `npm test`."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/shipping.test.js test/money.test.js --reporter=json --outputFile=/data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/reports/attempt-1/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 415,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "total": 5,
+      "cases": [
+        {
+          "title": "formatPrice formats a price in dollars",
+          "file": "test/money.test.js",
+          "status": "passed",
+          "durationMs": 1.1013540000000006
+        },
+        {
+          "title": "formatPrice refuses a price that is not a whole number of cents",
+          "file": "test/money.test.js",
+          "status": "passed",
+          "durationMs": 0.24612000000000478
+        },
+        {
+          "title": "shippingFor charges the flat rate under $50",
+          "file": "test/shipping.test.js",
+          "status": "passed",
+          "durationMs": 1.1191869999999966
+        },
+        {
+          "title": "shippingFor ships free from $50",
+          "file": "test/shipping.test.js",
+          "status": "passed",
+          "durationMs": 4.098421000000002
+        },
+        {
+          "title": "shippingFor ships free above $50",
+          "file": "test/shipping.test.js",
+          "status": "passed",
+          "durationMs": 0.16408099999999592
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "test/money.test.js",
+      "status": "modified"
+    },
+    {
+      "path": "test/shipping.test.js",
+      "status": "modified"
+    }
+  ],
+  "defects": [
+    {
+      "title": "shippingFor charges the flat rate at exactly $50 instead of shipping free",
+      "testCaseId": "TC2",
+      "file": "test/shipping.test.js",
+      "description": "AC2: orders whose goods cost 5000 cents or more ship free (FREE_SHIPPING_FROM doc). shippingFor(5000) should return 0 but returns 499. Commit b66bd89 'Bump dependencies' (routine upkeep) replaced `subtotal >= FREE_SHIPPING_FROM ? 0 : FLAT_RATE` with RATES bands chosen by `subtotal > b.over`; with the free band at over: 5000, the strict `>` excludes exactly 5000, so the boundary falls into the 499 band.",
+      "evidence": "AssertionError: expected 499 to be +0 // Object.is equality (test/shipping.test.js:11)",
+      "expectedFailure": "expected 499 to be +0"
+    }
+  ],
+  "issues": [
+    {
+      "board": "github-issues",
+      "key": "gregoryduckworth/testforge-eval-fixtures#77",
+      "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/issues/77",
+      "title": "Shipping charges $4.99 on orders of exactly $50.00, which should ship free",
+      "action": "commented",
+      "fingerprint": "regression-620c9fd977a94266",
+      "file": "test/shipping.test.js",
+      "caseTitle": "ships free from $50"
+    }
+  ],
+  "stability": [
+    {
+      "files": [
+        {
+          "path": "test/money.test.js",
+          "framework": "vitest"
+        },
+        {
+          "path": "test/shipping.test.js",
+          "framework": "vitest"
+        }
+      ],
+      "repeats": 5,
+      "shuffle": false,
+      "groups": [
+        {
+          "framework": "vitest",
+          "mode": "loop",
+          "repeats": 5,
+          "shuffled": false,
+          "command": "vitest run test/money.test.js test/shipping.test.js --reporter=json --outputFile=/data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/reports/probe-1/vitest-0/run-1/vitest.json --coverage.enabled=false --retry=0",
+          "errors": []
+        }
+      ],
+      "cases": [
+        {
+          "framework": "vitest",
+          "title": "formatPrice formats a price in dollars",
+          "file": "test/money.test.js",
+          "verdict": "failing",
+          "runs": 5,
+          "passes": 0,
+          "failures": 5,
+          "passRate": 0,
+          "duration": {
+            "minMs": 4.350246999999996,
+            "medianMs": 4,
+            "maxMs": 4.600449999999995
+          },
+          "failureMessages": [
+            {
+              "message": "AssertionError: expected '12.50 USD' to be '$12.50' // Object.is equality\n    at /data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/test/money.test.js:6:31\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:1695:35\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:2864:26\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:3402:20\n    at new Promise (<anonymous>)\n    at runWithC…",
+              "count": 5
+            }
+          ]
+        },
+        {
+          "framework": "vitest",
+          "title": "shippingFor ships free from $50",
+          "file": "test/shipping.test.js",
+          "verdict": "failing",
+          "runs": 5,
+          "passes": 0,
+          "failures": 5,
+          "passRate": 0,
+          "duration": {
+            "minMs": 3.399224000000004,
+            "medianMs": 4,
+            "maxMs": 3.847965000000002
+          },
+          "failureMessages": [
+            {
+              "message": "AssertionError: expected 499 to be +0 // Object.is equality\n    at /data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/test/shipping.test.js:10:31\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:1695:35\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:2864:26\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:3402:20\n    at new Promise (<anonymous>)\n    at runWithCancel (fil…",
+              "count": 5
+            }
+          ]
+        },
+        {
+          "framework": "vitest",
+          "title": "formatPrice refuses a price that is not a whole number of cents",
+          "file": "test/money.test.js",
+          "verdict": "stable",
+          "runs": 5,
+          "passes": 5,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.274368999999993,
+            "medianMs": 0,
+            "maxMs": 0.340951000000004
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "shippingFor charges the flat rate under $50",
+          "file": "test/shipping.test.js",
+          "verdict": "stable",
+          "runs": 5,
+          "passes": 5,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.9692310000000077,
+            "medianMs": 1,
+            "maxMs": 1.043145999999993
+          },
+          "failureMessages": []
+        },
+        {
+          "framework": "vitest",
+          "title": "shippingFor ships free above $50",
+          "file": "test/shipping.test.js",
+          "verdict": "stable",
+          "runs": 5,
+          "passes": 5,
+          "failures": 0,
+          "passRate": 1,
+          "duration": {
+            "minMs": 0.12391399999999919,
+            "medianMs": 0,
+            "maxMs": 0.16466300000000444
+          },
+          "failureMessages": []
+        }
+      ],
+      "durationMs": 1402
+    }
+  ],
+  "regression": {
+    "head": {
+      "commit": "518e0e2e744d7abfcbe5c06db6c2959052927041"
+    },
+    "baseline": {
+      "commit": "0610e02440fdc0daadc777023e1a2a34941bebdb",
+      "recordedAt": "2026-11-22T11:22:34.974Z"
+    },
+    "totals": {
+      "passed": 8,
+      "failed": 2,
+      "skipped": 0
+    },
+    "failures": [
+      {
+        "framework": "vitest",
+        "file": "test/money.test.js",
+        "title": "formatPrice formats a price in dollars",
+        "error": "AssertionError: expected '12.50 USD' to be '$12.50' // Object.is equality\n    at /data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/test/money.test.js:6:31\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:1695:35\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/r…"
+      },
+      {
+        "framework": "vitest",
+        "file": "test/shipping.test.js",
+        "title": "shippingFor ships free from $50",
+        "error": "AssertionError: expected 499 to be +0 // Object.is equality\n    at /data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/test/shipping.test.js:10:31\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/run.zBhXlcZQ.js:1695:35\n    at file:///data/workspaces/9780061b-9bd7-424b-a07d-a9624d03222c/repo/node_modules/vitest/dist/chunks/run.zBhXlcZ…"
+      }
+    ],
+    "flaky": [],
+    "unconfirmed": [],
+    "knownFailures": 0,
+    "errors": [],
+    "recorded": false,
+    "bisects": [
+      {
+        "repo": "tests",
+        "cases": [
+          {
+            "framework": "vitest",
+            "file": "test/money.test.js",
+            "title": "formatPrice formats a price in dollars"
+          }
+        ],
+        "good": "0610e02440fdc0daadc777023e1a2a34941bebdb",
+        "bad": "518e0e2e744d7abfcbe5c06db6c2959052927041",
+        "steps": 3,
+        "skipped": [],
+        "outcome": "found",
+        "culprit": {
+          "sha": "384b454d1a5524c4c49078637bfdc93ce8e7c2e6",
+          "subject": "Tidy the money helpers",
+          "body": "See the changelog.",
+          "author": "TestForge eval",
+          "date": "2026-01-01T01:00:00+00:00",
+          "diffStat": {
+            "files": 2,
+            "insertions": 8,
+            "deletions": 3,
+            "top": [
+              {
+                "path": "src/money.js",
+                "insertions": 3,
+                "deletions": 3
+              },
+              {
+                "path": "CHANGELOG.md",
+                "insertions": 5,
+                "deletions": 0
+              }
+            ]
+          },
+          "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 69aa252..a3b2055 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -1,5 +1,10 @@\n # Changelog\n \n+## 1.1.0\n+\n+- Prices are shown with their ISO currency code after the amount (`12.50 USD`, no longer `$12.50`), so\n+  invoices read the same in every market. `formatPrice` takes the currency as its second argument.\n+\n ## 1.0.0\n \n - Price an order's lines and its shipping, and format prices for display.\ndiff --git a/src/money.js b/src/money.js\nindex ed28740..40cc5fd 100644\n--- a/src/money.js\n+++ b/src/money.js\n@@ -1,5 +1,5 @@\n-/** A price in cents as customers see it, such as `$12.50`. */\n-export function formatPrice(cents) {\n+/** A price in cents as customers see it, with its currency code: `12.50 USD`. */\n+export function formatPrice(cents, currency = 'USD') {\n   if (!Number.isInteger(cents) || cents < 0) throw new RangeError(`Not a price in cents: ${cents}`);\n-  return `$${(cents / 100).toFixed(2)}`;\n+  return `${(cents / 100).toFixed(2)} ${currency}`;\n }"
+        }
+      },
+      {
+        "repo": "tests",
+        "cases": [
+          {
+            "framework": "vitest",
+            "file": "test/shipping.test.js",
+            "title": "shippingFor ships free from $50"
+          }
+        ],
+        "good": "0610e02440fdc0daadc777023e1a2a34941bebdb",
+        "bad": "518e0e2e744d7abfcbe5c06db6c2959052927041",
+        "steps": 3,
+        "skipped": [],
+        "outcome": "found",
+        "culprit": {
+          "sha": "b66bd89c4f0b0aa12fe28057d7ca02c0cf307cd0",
+          "subject": "Bump dependencies",
+          "body": "Routine upkeep.",
+          "author": "TestForge eval",
+          "date": "2026-01-01T03:00:00+00:00",
+          "diffStat": {
+            "files": 2,
+            "insertions": 12,
+            "deletions": 2,
+            "top": [
+              {
+                "path": "src/shipping.js",
+                "insertions": 11,
+                "deletions": 1
+              },
+              {
+                "path": "package.json",
+                "insertions": 1,
+                "deletions": 1
+              }
+            ]
+          },
+          "diff": "diff --git a/package.json b/package.json\nindex 230147d..30393e2 100644\n--- a/package.json\n+++ b/package.json\n@@ -1,6 +1,6 @@\n {\n   \"name\": \"orders\",\n-  \"version\": \"1.0.0\",\n+  \"version\": \"1.1.1\",\n   \"private\": true,\n   \"type\": \"module\",\n   \"scripts\": {\ndiff --git a/src/shipping.js b/src/shipping.js\nindex 1005ad7..6d9348d 100644\n--- a/src/shipping.js\n+++ b/src/shipping.js\n@@ -1,3 +1,12 @@\n+/**\n+ * Shipping by the goods' cost, in cents: each band applies above its `over`, the highest that\n+ * applies wins. A new band is one more row.\n+ */\n+export const RATES = [\n+  { over: 0, rate: 499 },\n+  { over: 5000, rate: 0 },\n+];\n+\n /** Orders whose goods cost this much or more, in cents, ship free. */\n export const FREE_SHIPPING_FROM = 5000;\n \n@@ -6,5 +15,6 @@ export const FLAT_RATE = 499;\n \n /** What shipping costs, in cents, for goods costing `subtotal` cents. */\n export function shippingFor(subtotal) {\n-  return subtotal >= FREE_SHIPPING_FROM ? 0 : FLAT_RATE;\n+  const band = RATES.filter((b) => subtotal > b.over).at(-1) ?? RATES[0];\n+  return band.rate;\n }"
+        }
+      }
+    ]
+  },
+  "regressionOutcomes": [
+    {
+      "framework": "vitest",
+      "file": "test/money.test.js",
+      "title": "formatPrice formats a price in dollars",
+      "culprit": {
+        "sha": "384b454d1a5524c4c49078637bfdc93ce8e7c2e6",
+        "subject": "Tidy the money helpers"
+      },
+      "outcome": "updated"
+    },
+    {
+      "framework": "vitest",
+      "file": "test/shipping.test.js",
+      "title": "shippingFor ships free from $50",
+      "culprit": {
+        "sha": "b66bd89c4f0b0aa12fe28057d7ca02c0cf307cd0",
+        "subject": "Bump dependencies"
+      },
+      "outcome": "filed",
+      "issue": {
+        "key": "gregoryduckworth/testforge-eval-fixtures#77",
+        "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/issues/77"
+      }
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "submit_strategy",
+      "run_tests",
+      "record_defect",
+      "run_tests",
+      "run_checks",
+      "self_check",
+      "file_issue",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "submit_strategy",
+        "category": "standards",
+        "reason": "strategy submitted before testforge:refactor were loaded",
+        "stage": "strategy"
+      },
+      {
+        "tool": "Edit",
+        "category": "standards",
+        "reason": "test/money.test.js written before testforge:unit, testforge:vitest, testforge:implementation were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 2
+    },
+    "optionalTools": {
+      "recall": 1,
+      "record_defect": 1,
+      "run_checks": 1,
+      "self_check": 1,
+      "file_issue": 1
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-5916ace6"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.6743455,
+    "inputTokens": 621249,
+    "outputTokens": 1956
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.36905180000000004,
+      "inputTokens": 88,
+      "cacheReadTokens": 432374,
+      "cacheCreationTokens": 55701,
+      "outputTokens": 186,
+      "responses": 11
+    }
+  },
+  "startedAt": "2026-11-22T11:22:35.488Z",
+  "finishedAt": "2026-11-22T11:24:09.284Z"
+}
