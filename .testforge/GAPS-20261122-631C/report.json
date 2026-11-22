@@ -1,0 +1,307 @@
+{
+  "status": "succeeded",
+  "workflow": "gaps",
+  "ticketKey": "GAPS-20261122-631C",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/gaps-20261122-631c-guard-the-pages-that-pass-with-zxhk",
+  "frameworks": [
+    "playwright"
+  ],
+  "strategy": {
+    "summary": "axe-core found no violations on `/` and `/contact`, and no e2e test runs axe on them yet. Add an axe check (via @axe-core/playwright, which is already a devDependency) to the existing home and contact spec files. Each check fails on any violation rated minor or worse, and its failure message lists each rule and the elements it failed on.",
+    "inScope": [
+      "Axe check on / in tests/home.spec.js",
+      "Axe check on /contact in tests/contact.spec.js",
+      "A shared helper, tests/support/axe.js, that runs axe and formats the violations, used by both specs"
+    ],
+    "outOfScope": [
+      "Known violations on /about (color-contrast) and /cart (image-alt): earlier runs already reported them, and the ticket says to leave them",
+      "Keyboard and screen-reader behaviour, which axe can't check"
+    ],
+    "assumptions": [
+      "The real app runs from server.js through Playwright's webServer on port 4174; nothing is faked",
+      "The axe check gets a new test in each page's existing spec file. The existing journey tests stay unchanged, with every assertion kept",
+      "The scan runs every axe rule, with no withTags restriction and no rule disabled, to match the sweep that found these pages clean"
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "A future change adds an accessibility regression to the home or contact page",
+        "impact": "medium",
+        "mitigation": "Each page gets an axe check that fails on any violation rated minor or worse"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "/ has no axe violations rated minor or worse, checked in an e2e test",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "/contact has no axe violations rated minor or worse, checked in an e2e test",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "home page has no axe violations",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "accessibility",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "App served on baseURL"
+        ],
+        "steps": [
+          "Go to /",
+          "Wait for the 'Corner Shop' heading",
+          "Run AxeBuilder.analyze()",
+          "Keep violations rated minor, moderate, serious or critical"
+        ],
+        "expected": "The filtered violation list is empty; on failure the message names each rule and its element targets",
+        "testData": "",
+        "targetFile": "tests/home.spec.js",
+        "automate": true,
+        "rationale": "Keeps the passing home page passing"
+      },
+      {
+        "id": "TC2",
+        "title": "contact page has no axe violations",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "accessibility",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "App served on baseURL"
+        ],
+        "steps": [
+          "Go to /contact",
+          "Wait for the Email field",
+          "Run AxeBuilder.analyze()",
+          "Keep violations rated minor, moderate, serious or critical"
+        ],
+        "expected": "The filtered violation list is empty; on failure the message names each rule and its element targets",
+        "testData": "",
+        "targetFile": "tests/contact.spec.js",
+        "automate": true,
+        "rationale": "Keeps the passing contact page passing"
+      }
+    ],
+    "environmentNotes": "Playwright's webServer starts node server.js on port 4174 (BASE_URL=http://localhost:4174)."
+  },
+  "results": [
+    {
+      "framework": "playwright",
+      "command": "playwright test tests/contact.spec.js tests/home.spec.js --reporter=json",
+      "exitCode": 0,
+      "durationMs": 2762,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "total": 4,
+      "cases": [
+        {
+          "title": "sends a message [chromium]",
+          "file": "contact.spec.js",
+          "status": "passed",
+          "durationMs": 238,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "contact page has no axe violations [chromium]",
+          "file": "contact.spec.js",
+          "status": "passed",
+          "durationMs": 659,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "shows this week’s products [chromium]",
+          "file": "home.spec.js",
+          "status": "passed",
+          "durationMs": 162,
+          "timeoutMs": 30000
+        },
+        {
+          "title": "home page has no axe violations [chromium]",
+          "file": "home.spec.js",
+          "status": "passed",
+          "durationMs": 666,
+          "timeoutMs": 30000
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "tests/contact.spec.js",
+      "status": "modified"
+    },
+    {
+      "path": "tests/home.spec.js",
+      "status": "modified"
+    },
+    {
+      "path": "tests/support/axe.js",
+      "status": "added"
+    }
+  ],
+  "accessibility": {
+    "scanner": "playwright",
+    "pages": [
+      {
+        "page": "/",
+        "violations": 0,
+        "rules": []
+      },
+      {
+        "page": "/about",
+        "violations": 1,
+        "rules": [
+          "color-contrast"
+        ]
+      },
+      {
+        "page": "/cart",
+        "violations": 1,
+        "rules": [
+          "image-alt"
+        ]
+      },
+      {
+        "page": "/contact",
+        "violations": 0,
+        "rules": []
+      }
+    ],
+    "violations": [
+      {
+        "rule": "color-contrast",
+        "impact": "serious",
+        "page": "/about",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/color-contrast?application=axeAPI",
+        "tags": [
+          "cat.color",
+          "wcag2aa",
+          "wcag143",
+          "TTv5",
+          "TT13.c",
+          "EN-301-549",
+          "EN-9.1.4.3",
+          "ACT",
+          "RGAAv4",
+          "RGAA-3.2.1"
+        ],
+        "elements": [
+          {
+            "target": ".small-print",
+            "html": "<p class=\"small-print\">Orders over $50 ship free within the city.</p>",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.69 (foreground color: #c7c7c7, background color: #ffffff, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ],
+        "elementCount": 1
+      },
+      {
+        "rule": "image-alt",
+        "impact": "critical",
+        "page": "/cart",
+        "help": "Images must have alternative text",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/image-alt?application=axeAPI",
+        "tags": [
+          "cat.text-alternatives",
+          "wcag2a",
+          "wcag111",
+          "section508",
+          "section508.22.a",
+          "TTv5",
+          "TT7.a",
+          "TT7.b",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "ACT",
+          "RGAAv4",
+          "RGAA-1.1.1"
+        ],
+        "elements": [
+          {
+            "target": "li:nth-child(1) > img",
+            "html": "<img src=\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\" width=\"48\" height=\"48\">",
+            "summary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+          },
+          {
+            "target": "li:nth-child(2) > img",
+            "html": "<img src=\"data:image/gif;base64,R0lGODlhAQABAAAAACw=\" width=\"48\" height=\"48\">",
+            "summary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+          }
+        ],
+        "elementCount": 2
+      }
+    ],
+    "errors": [],
+    "head": {
+      "commit": "5697c848193a8fb6ca16a35fa45b8d20147db1b2"
+    },
+    "minImpact": "minor",
+    "newKeys": [],
+    "fixed": [],
+    "toGuard": [
+      "/",
+      "/contact"
+    ]
+  },
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "submit_strategy",
+      "run_tests",
+      "run_checks",
+      "self_check",
+      "run_tests",
+      "self_check",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "submit_strategy",
+        "category": "standards",
+        "reason": "strategy submitted before testforge:accessibility, testforge:refactor were loaded",
+        "stage": "strategy"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_checks": 1,
+      "self_check": 2
+    },
+    "subagentCalls": 0
+  },
+  "usage": {
+    "costUsd": 0.649014,
+    "inputTokens": 792211,
+    "outputTokens": 2491
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.3229856,
+      "inputTokens": 116,
+      "cacheReadTokens": 589933,
+      "cacheCreationTokens": 40195,
+      "outputTokens": 178,
+      "responses": 14
+    }
+  },
+  "startedAt": "2026-11-22T10:42:13.204Z",
+  "finishedAt": "2026-11-22T10:44:34.947Z"
+}
