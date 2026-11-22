@@ -1,0 +1,510 @@
+{
+  "status": "succeeded",
+  "workflow": "gaps",
+  "ticketKey": "GAPS-20261122-B216",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/gaps-20261122-b216-cover-the-changes-no-test-reac-4yzv",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "Commits d2bc881/0451da8 added coupon codes (src/coupons.js) and a bulk discount plus coupon handling in priceBasket (src/pricing.js); the listed lines have no test. Unit tests with Vitest will call couponDiscount, discountFor and priceBasket directly and assert the amounts, the cap, the case/space matching, the unknown-code error and the coupon field in the basket result.",
+    "inScope": [
+      "src/coupons.js lines 4-5, 20-23 (UnknownCouponError, couponDiscount)",
+      "src/pricing.js lines 14, 26, 30 (bulk discount, coupon in priceBasket)"
+    ],
+    "outOfScope": [
+      "formatPence and cart line validation (already covered, not listed)"
+    ],
+    "assumptions": [
+      "Amounts follow the code and README: SAVE10 is 10% rounded down, TENOFF is 1000 pence capped at the total, bulk is 10% from 10 items when larger than the spend discount, coupons come off after the discount.",
+      "No services are needed; these are pure-function unit tests."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "Coupon applied to the pre-discount subtotal instead of the discounted total would overcharge the discount",
+        "impact": "high",
+        "mitigation": "TC9 uses a basket with a spend discount, so the coupon amount differs depending on which base is used"
+      },
+      {
+        "description": "Bulk discount computed on per-line quantity instead of basket item count",
+        "impact": "medium",
+        "mitigation": "TC12 spreads 10 items over two lines"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "couponDiscount takes 10% (rounded down) for SAVE10 and 1000 pence for TENOFF, never more than the total",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "A coupon code matches regardless of letter case and surrounding spaces",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "An unknown coupon code is refused with an UnknownCouponError naming the code, also through priceBasket",
+        "derived": true
+      },
+      {
+        "id": "AC4",
+        "text": "A basket of 10 or more items (across lines) gets 10% off when that beats the spend discount; fewer than 10 items gets no bulk discount",
+        "derived": true
+      },
+      {
+        "id": "AC5",
+        "text": "priceBasket applies a coupon after the discount, reports what it took as `coupon`, and the total never goes below zero",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "takes 10% off, rounded down, for SAVE10",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "couponDiscount('SAVE10', 1999)"
+        ],
+        "expected": "199",
+        "testData": "1999 pence",
+        "targetFile": "test/coupons.test.js",
+        "automate": true,
+        "rationale": "src/coupons.js lines 20, 22, 23 (percent branch)"
+      },
+      {
+        "id": "TC2",
+        "title": "takes £10 off for TENOFF",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "couponDiscount('TENOFF', 5000)"
+        ],
+        "expected": "1000",
+        "testData": "",
+        "targetFile": "test/coupons.test.js",
+        "automate": true,
+        "rationale": "src/coupons.js line 22 (fixed pence branch), 23"
+      },
+      {
+        "id": "TC3",
+        "title": "never takes more than the total",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "couponDiscount('TENOFF', 600)"
+        ],
+        "expected": "600",
+        "testData": "",
+        "targetFile": "test/coupons.test.js",
+        "automate": true,
+        "rationale": "src/coupons.js line 23 (Math.min cap)"
+      },
+      {
+        "id": "TC4",
+        "title": "matches a code whatever its case and the spaces around it",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "couponDiscount('  save10 ', 5000)"
+        ],
+        "expected": "500",
+        "testData": "",
+        "targetFile": "test/coupons.test.js",
+        "automate": true,
+        "rationale": "src/coupons.js line 20 (trim/toUpperCase)"
+      },
+      {
+        "id": "TC5",
+        "title": "refuses a code the shop doesn't take",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Call couponDiscount('BOGUS', 5000) once and capture the error"
+        ],
+        "expected": "Throws an UnknownCouponError with name 'UnknownCouponError' and message 'No coupon \"BOGUS\".'",
+        "testData": "",
+        "targetFile": "test/coupons.test.js",
+        "automate": true,
+        "rationale": "src/coupons.js lines 4, 5, 21"
+      },
+      {
+        "id": "TC6",
+        "title": "takes 10% off for 10 items below £50",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [],
+        "steps": [
+          "discountFor(4000, 10)"
+        ],
+        "expected": "400",
+        "testData": "",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "src/pricing.js line 14 (bulk branch)"
+      },
+      {
+        "id": "TC7",
+        "title": "takes no bulk discount for 9 items",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [],
+        "steps": [
+          "discountFor(4000, 9)"
+        ],
+        "expected": "0",
+        "testData": "",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "src/pricing.js line 14 (boundary below BULK_ITEMS)"
+      },
+      {
+        "id": "TC8",
+        "title": "takes the bulk discount when it beats the spend discount",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [],
+        "steps": [
+          "discountFor(6000, 10)"
+        ],
+        "expected": "600 (not the 5% spend discount of 300)",
+        "testData": "",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "src/pricing.js lines 14-15"
+      },
+      {
+        "id": "TC9",
+        "title": "takes a coupon off after the discount and says what it took",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC5"
+        ],
+        "preconditions": [],
+        "steps": [
+          "priceBasket([{ unitPence: 2500, quantity: 3 }], { coupon: 'SAVE10' })"
+        ],
+        "expected": "{ subtotal: 7500, discount: 375, coupon: 712, total: 6413, items: 3 }",
+        "testData": "",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "src/pricing.js lines 26, 30"
+      },
+      {
+        "id": "TC10",
+        "title": "never takes a basket below zero with a coupon",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "edge",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC5"
+        ],
+        "preconditions": [],
+        "steps": [
+          "priceBasket([{ unitPence: 400, quantity: 2 }], { coupon: 'TENOFF' })"
+        ],
+        "expected": "{ subtotal: 800, discount: 0, coupon: 800, total: 0, items: 2 }",
+        "testData": "",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "src/pricing.js lines 26, 30 with the coupon cap"
+      },
+      {
+        "id": "TC11",
+        "title": "refuses a basket with a coupon the shop doesn't take",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Call priceBasket([{ unitPence: 2500, quantity: 3 }], { coupon: 'BOGUS' }) and capture the error"
+        ],
+        "expected": "Throws UnknownCouponError",
+        "testData": "",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "src/pricing.js line 26 propagating coupons.js line 21"
+      },
+      {
+        "id": "TC12",
+        "title": "counts items across lines for the bulk discount",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [],
+        "steps": [
+          "priceBasket([{ unitPence: 300, quantity: 4 }, { unitPence: 300, quantity: 6 }])"
+        ],
+        "expected": "{ subtotal: 3000, discount: 300, total: 2700, items: 10 }",
+        "testData": "",
+        "targetFile": "test/pricing.test.js",
+        "automate": true,
+        "rationale": "src/pricing.js line 14 via priceBasket"
+      }
+    ],
+    "environmentNotes": "None; pure unit tests run with `npm test` (vitest run)."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/pricing.test.js test/coupons.test.js --reporter=json --outputFile=/data/workspaces/b21690b0-390c-497a-ae29-bdfa02e2a678/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 402,
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "total": 15,
+      "cases": [
+        {
+          "title": "coupons takes 10% off, rounded down, for SAVE10",
+          "file": "test/coupons.test.js",
+          "status": "passed",
+          "durationMs": 1.066223000000008
+        },
+        {
+          "title": "coupons takes £10 off for TENOFF",
+          "file": "test/coupons.test.js",
+          "status": "passed",
+          "durationMs": 0.1507040000000046
+        },
+        {
+          "title": "coupons never takes more than the total",
+          "file": "test/coupons.test.js",
+          "status": "passed",
+          "durationMs": 0.11174700000000826
+        },
+        {
+          "title": "coupons matches a code whatever its case and the spaces around it",
+          "file": "test/coupons.test.js",
+          "status": "passed",
+          "durationMs": 0.13120499999999424
+        },
+        {
+          "title": "coupons refuses a code the shop doesn't take",
+          "file": "test/coupons.test.js",
+          "status": "passed",
+          "durationMs": 0.23091100000000608
+        },
+        {
+          "title": "pricing takes nothing off below £50",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 1.1363460000000032
+        },
+        {
+          "title": "pricing takes 5% off from £50",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.13887200000002053
+        },
+        {
+          "title": "pricing prices a basket with its discount",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.5040290000000027
+        },
+        {
+          "title": "pricing takes 10% off for 10 items below £50",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.12003899999999135
+        },
+        {
+          "title": "pricing takes no bulk discount for 9 items",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.09858100000002423
+        },
+        {
+          "title": "pricing takes the bulk discount when it beats the spend discount",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.10858000000001766
+        },
+        {
+          "title": "pricing counts items across lines for the bulk discount",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.13220499999999902
+        },
+        {
+          "title": "pricing takes a coupon off after the discount and says what it took",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.15516200000001845
+        },
+        {
+          "title": "pricing never takes a basket below zero with a coupon",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.1536209999999869
+        },
+        {
+          "title": "pricing refuses a basket with a coupon the shop doesn't take",
+          "file": "test/pricing.test.js",
+          "status": "passed",
+          "durationMs": 0.3759069999999838
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "test/pricing.test.js",
+      "status": "modified"
+    },
+    {
+      "path": "test/coupons.test.js",
+      "status": "added"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "run_tests",
+      "run_checks",
+      "self_check",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "test/coupons.test.js written before testforge:unit, testforge:vitest, testforge:implementation were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_checks": 1,
+      "self_check": 1
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.6370743999999999,
+    "inputTokens": 557888,
+    "outputTokens": 2326
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.3095294,
+      "inputTokens": 62,
+      "cacheReadTokens": 375782,
+      "cacheCreationTokens": 46313,
+      "outputTokens": 128,
+      "responses": 9
+    }
+  },
+  "startedAt": "2026-11-22T11:17:21.829Z",
+  "finishedAt": "2026-11-22T11:19:05.860Z"
+}
