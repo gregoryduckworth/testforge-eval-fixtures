@@ -1,3 +1,4 @@
+// PERFORMANCE-20261122-B7D4: TC1
 import http from 'k6/http';
 import { check } from 'k6';
 
@@ -22,6 +23,9 @@ export const options = {
   thresholds: {
     http_req_failed: ['rate<0.01'],
     http_req_duration: ['p(95)<2000'],
+    // detail scenario holds order-detail latency at its last good level (p95 < 28.8 ms, p99 < 31.2 ms):
+    // the last good runs held p95 24 ms and p99 26 ms; these allow 20% headroom over them.
+    'http_req_duration{scenario:detail}': ['p(95)<28.8', 'p(99)<31.2'],
   },
 };
 
@@ -34,4 +38,10 @@ export function detail() {
   const id = 1 + Math.floor(Math.random() * 60);
   const res = http.get(`${BASE_URL}/orders/${id}`);
   check(res, { 'returns the order': (r) => r.status === 200 });
+}
+
+// Run when the CLI's --vus/--iterations replace the scenarios (a smoke run): one pass of each journey.
+export default function () {
+  list();
+  detail();
 }
