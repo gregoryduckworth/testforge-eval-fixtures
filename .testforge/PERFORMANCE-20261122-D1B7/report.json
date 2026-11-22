@@ -1,0 +1,359 @@
+{
+  "status": "succeeded",
+  "workflow": "performance",
+  "ticketKey": "PERFORMANCE-20261122-D1B7",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/performance-20261122-d1b7-find-performance-regressions-t04z",
+  "frameworks": [
+    "k6"
+  ],
+  "strategy": {
+    "summary": "The orders detail scenario (GET /orders/:id) slowed from p95 22 ms to 30 ms and p99 23 ms to 33 ms, confirmed on a rerun, starting at commit 72802a9 (\"Show each line's product name on an order\"). That commit adds a third sequential store round trip (productNames) to every detail request. The k6 script perf/orders.js gets scenario-tagged thresholds at the baseline plus 20%, so it fails under load until the endpoint is fast again. The defect is recorded and filed.",
+    "inScope": [
+      "Thresholds on http_req_duration{scenario:detail} p(95) and p(99) in perf/orders.js, added beside the existing thresholds; no existing scenario, check or threshold changes",
+      "Recording and filing the detail slowdown"
+    ],
+    "outOfScope": [
+      "Changing application code to win the time back (a person's job)",
+      "list p99 and search p99: their baselines vary too much (cv 10.6% and 9.6%) to judge, and neither was a slowdown",
+      "Restructuring perf/orders.js beyond adding the thresholds and the ticket tag comment"
+    ],
+    "assumptions": [
+      "The thresholds come from the baselines in the work item (p95 22 ms and p99 23 ms) plus the run's 20% headroom: p(95)<26.4 and p(99)<27.6.",
+      "The existing global thresholds (http_req_failed rate<0.01, http_req_duration p(95)<2000) stay unchanged.",
+      "run_tests runs smoke mode with thresholds off, so it shows that the script still runs. It doesn't enforce the new thresholds."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "Thresholds at baseline + 20% may fail on slower CI hardware than TestForge's measuring environment",
+        "impact": "medium",
+        "mitigation": "The thresholds are tagged to the detail scenario only, and the baseline variance was small (cv 1.6–2.1%)"
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "The detail scenario of perf/orders.js holds p95 http_req_duration below 26.4 ms (baseline 22 ms + 20%)",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "The detail scenario of perf/orders.js holds p99 http_req_duration below 27.6 ms (baseline 23 ms + 20%)",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "detail scenario keeps p95 and p99 latency within 20% of the last good runs",
+        "level": "performance",
+        "framework": "k6",
+        "type": "performance",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1",
+          "AC2"
+        ],
+        "preconditions": [
+          "orders API running at BASE_URL"
+        ],
+        "steps": [
+          "Run perf/orders.js under its constant-arrival-rate scenarios",
+          "k6 evaluates 'http_req_duration{scenario:detail}': ['p(95)<26.4', 'p(99)<27.6']"
+        ],
+        "expected": "Thresholds pass when the detail latency is at baseline. They fail now (p95 30 ms, p99 33 ms) until the extra round trip is removed.",
+        "testData": "",
+        "targetFile": "perf/orders.js",
+        "automate": true,
+        "rationale": "Commit 72802a9 added productNames(), a separate awaited store query on every GET /orders/:id after findOrder and orderLines. That takes the request from 2 sequential round trips (6–9 ms each) to 3, about +8 ms, which matches the measured slowdown. The commit message says the names come 'in one query with the lines', but the code makes a separate query."
+      }
+    ],
+    "environmentNotes": "The orders API (npm start) is served at BASE_URL, default http://localhost:4310."
+  },
+  "results": [
+    {
+      "framework": "k6",
+      "command": "k6 run --vus 1 --iterations 1 --no-thresholds --quiet --summary-export /data/workspaces/d1b77491-0ed7-4f70-8076-98bcca2607ac/reports/attempt-1/k6-0/k6-0.json -e BASE_URL=http://localhost:4310 perf/orders.js",
+      "exitCode": 0,
+      "durationMs": 76,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "total": 2,
+      "cases": [
+        {
+          "title": "lists the orders",
+          "file": "perf/orders.js",
+          "status": "passed"
+        },
+        {
+          "title": "returns the order",
+          "file": "perf/orders.js",
+          "status": "passed"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "perf/orders.js",
+      "status": "modified"
+    }
+  ],
+  "defects": [
+    {
+      "title": "Order detail (GET /orders/:id) p95/p99 latency up ~40% since 72802a9: extra store round trip for product names",
+      "testCaseId": "TC1",
+      "file": "perf/orders.js",
+      "description": "The perf/orders.js detail scenario's p95 latency rose from 22 ms to 30 ms (+40.7%, 31 ms on the rerun). Its p99 rose from 23 ms to 33 ms (+39.6%, 33 ms on the rerun). The baseline is the median of 5 good runs (cv 1.6–2.1%). The bisect's first slow commit is 72802a9fba0d, \"Show each line's product name on an order\". That commit adds `productNames()` in src/store.js, a separate awaited query (`roundTrip()`, 6–9 ms) that the order route in src/app.js calls after `findOrder` and `orderLines`. Each detail request now makes 3 sequential round trips instead of 2, which matches the ~8 ms increase. The commit message says the names come \"in one query with the lines\", but the code queries for them separately. The fix is to return the product name from `orderLines` (where it already looks up each line's product for the price) and drop the extra query. The new thresholds are 'http_req_duration{scenario:detail}': p(95)<26.4, p(99)<27.6 (baseline + 20%), and they will fail under load until this is fixed.",
+      "evidence": "Work item measurements: detail p95 22→30 ms (rerun 31), p99 23→33 ms (rerun 33). Bisect: first failed at 72802a9fba0d. Diff: src/app.js adds `const names = await productNames(items.map(...))`; src/store.js productNames() awaits roundTrip()."
+    }
+  ],
+  "issues": [
+    {
+      "board": "github-issues",
+      "key": "gregoryduckworth/testforge-eval-fixtures#110",
+      "url": "https://github.com/gregoryduckworth/testforge-eval-fixtures/issues/110",
+      "title": "Order detail (GET /orders/:id) is ~4x slower: one product query per line since 62d8c6f",
+      "action": "commented",
+      "fingerprint": "performance-0856b58ebb44241b",
+      "file": "perf/orders.js",
+      "caseTitle": "detail › performance"
+    }
+  ],
+  "performance": {
+    "head": {
+      "commit": "35eaba9c1f5a0190f766e48f19652618cbc48f2c"
+    },
+    "baseline": {
+      "samples": 5,
+      "newest": {
+        "commit": "74ba3b2881e6c7a3abbfc3282c769f3c64901d46",
+        "recordedAt": "2026-11-22T17:10:28.220Z"
+      }
+    },
+    "thresholdPct": 20,
+    "scenarios": [
+      {
+        "file": "perf/orders.js",
+        "scenario": "detail",
+        "requests": 201,
+        "p95": 30.297,
+        "p99": 32.512,
+        "errorRate": 0,
+        "throughput": 20.002
+      },
+      {
+        "file": "perf/orders.js",
+        "scenario": "list",
+        "requests": 200,
+        "p95": 12.614,
+        "p99": 13.882,
+        "errorRate": 0,
+        "throughput": 20
+      },
+      {
+        "file": "perf/search.js",
+        "scenario": "search",
+        "requests": 201,
+        "p95": 12.148,
+        "p99": 88.549,
+        "errorRate": 0,
+        "throughput": 19.992
+      }
+    ],
+    "regressions": [
+      {
+        "file": "perf/orders.js",
+        "scenario": "detail",
+        "metric": "p95",
+        "baseline": 21.53,
+        "now": 30.297,
+        "changePct": 40.7,
+        "samples": 5,
+        "spread": {
+          "low": 21.044,
+          "high": 22.113,
+          "sd": 0.45056941751521407,
+          "cvPct": 2.1,
+          "band": 1.9570319999999897
+        },
+        "rerun": 30.854
+      },
+      {
+        "file": "perf/orders.js",
+        "scenario": "detail",
+        "metric": "p99",
+        "baseline": 23.282,
+        "now": 32.512,
+        "changePct": 39.6,
+        "samples": 5,
+        "spread": {
+          "low": 22.551,
+          "high": 23.453,
+          "sd": 0.35898259010709777,
+          "cvPct": 1.6,
+          "band": 0.7605737999999971
+        },
+        "rerun": 32.915
+      }
+    ],
+    "noise": [],
+    "unconfirmed": [],
+    "tooNoisy": [
+      {
+        "file": "perf/orders.js",
+        "scenario": "list",
+        "metric": "p99",
+        "baseline": 14.055,
+        "now": 13.882,
+        "changePct": -1.2,
+        "samples": 5,
+        "spread": {
+          "low": 13.019,
+          "high": 16.832,
+          "sd": 1.5291496656638948,
+          "cvPct": 10.6,
+          "band": 3.4203582000000003
+        }
+      },
+      {
+        "file": "perf/search.js",
+        "scenario": "search",
+        "metric": "p99",
+        "baseline": 88.968,
+        "now": 88.549,
+        "changePct": -0.5,
+        "samples": 5,
+        "spread": {
+          "low": 75.276,
+          "high": 96.335,
+          "sd": 8.537088684088973,
+          "cvPct": 9.6,
+          "band": 29.755781999999986
+        }
+      }
+    ],
+    "errors": [],
+    "recorded": false,
+    "bisects": [
+      {
+        "repo": "tests",
+        "cases": [
+          {
+            "framework": "k6",
+            "file": "perf/orders.js",
+            "title": "detail › p95 latency"
+          },
+          {
+            "framework": "k6",
+            "file": "perf/orders.js",
+            "title": "detail › p99 latency"
+          }
+        ],
+        "good": "74ba3b2881e6c7a3abbfc3282c769f3c64901d46",
+        "bad": "35eaba9c1f5a0190f766e48f19652618cbc48f2c",
+        "steps": 2,
+        "skipped": [],
+        "outcome": "found",
+        "culprit": {
+          "sha": "72802a9fba0d0cca4715a93eac458d2c81f5e1cb",
+          "subject": "Show each line's product name on an order",
+          "body": "The order page listed product ids, which support had to look up. The names come from the store in one query with the lines.",
+          "author": "TestForge eval",
+          "date": "2026-01-01T02:00:00+00:00",
+          "diffStat": {
+            "files": 3,
+            "insertions": 10,
+            "deletions": 1,
+            "top": [
+              {
+                "path": "src/store.js",
+                "insertions": 6,
+                "deletions": 0
+              },
+              {
+                "path": "src/app.js",
+                "insertions": 3,
+                "deletions": 1
+              },
+              {
+                "path": "test/api.test.js",
+                "insertions": 1,
+                "deletions": 0
+              }
+            ]
+          },
+          "diff": "diff --git a/src/app.js b/src/app.js\nindex 3eabef4..49b584a 100644\n--- a/src/app.js\n+++ b/src/app.js\n@@ -1,5 +1,5 @@\n import { createServer } from 'node:http';\n-import { findOrder, listOrders, orderLines } from './store.js';\n+import { findOrder, listOrders, orderLines, productNames } from './store.js';\n import { searchOrders } from './search.js';\n \n const send = (res, status, body) => {\n@@ -22,6 +22,8 @@ async function route(req, res) {\n     const order = await findOrder(Number(match[1]));\n     if (!order) return send(res, 404, { error: 'no such order' });\n     const items = await orderLines(order.id);\n+    const names = await productNames(items.map((line) => line.productId));\n+    for (const line of items) line.productName = names.get(line.productId);\n     const totalCents = items.reduce((sum, l) => sum + l.priceCents * l.quantity, 0);\n     return send(res, 200, { ...order, lines: items, totalCents });\n   }\ndiff --git a/src/store.js b/src/store.js\nindex 03cf52d..1ccab14 100644\n--- a/src/store.js\n+++ b/src/store.js\n@@ -51,6 +51,12 @@ export async function orderLines(orderId) {\n     .map((l) => ({ ...l, priceCents: products.find((p) => p.id === l.productId).priceCents }));\n }\n \n+/** The names of `ids`' products, in one round trip: a map from id to name. */\n+export async function productNames(ids) {\n+  await roundTrip();\n+  return new Map(products.filter((p) => ids.includes(p.id)).map((p) => [p.id, p.name]));\n+}\n+\n export async function findProduct(id) {\n   await roundTrip();\n   return products.find((p) => p.id === id);\ndiff --git a/test/api.test.js b/test/api.test.js\nindex 0bee998..49e7e62 100644\n--- a/test/api.test.js\n+++ b/test/api.test.js\n@@ -36,6 +36,7 @@ describe('orders API', () => {\n     const { status, body } = await get('/orders/3');\n     assert.equal(status, 200);\n     assert.equal(body.lines.length, 8);\n+    assert.ok(body.lines.every((l) => /^Product \\d+$/.test(l.productName)));\n     assert.equal(\n       body.totalCents,\n       body.lines.reduce((sum, l) => sum + l.priceCents * l.quantity, 0),"
+        }
+      }
+    ]
+  },
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "submit_strategy",
+      "run_tests",
+      "run_checks",
+      "run_tests",
+      "record_defect",
+      "self_check",
+      "self_check",
+      "self_check",
+      "request_review",
+      "file_issue",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "submit_strategy",
+        "category": "standards",
+        "reason": "strategy submitted before testforge:refactor were loaded",
+        "stage": "strategy"
+      },
+      {
+        "tool": "Edit",
+        "category": "standards",
+        "reason": "perf/orders.js written before testforge:k6, testforge:implementation were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 2
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_checks": 1,
+      "record_defect": 1,
+      "self_check": 3,
+      "request_review": 1,
+      "file_issue": 1
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-cb39a525"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.756906,
+    "inputTokens": 1080933,
+    "outputTokens": 1978
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.4586246,
+      "inputTokens": 128,
+      "cacheReadTokens": 883313,
+      "cacheCreationTokens": 54790,
+      "outputTokens": 375,
+      "responses": 20
+    }
+  },
+  "startedAt": "2026-11-22T17:10:28.704Z",
+  "finishedAt": "2026-11-22T17:13:15.219Z"
+}
