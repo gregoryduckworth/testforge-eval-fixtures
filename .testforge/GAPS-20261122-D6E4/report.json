@@ -1,0 +1,397 @@
+{
+  "status": "succeeded",
+  "workflow": "gaps",
+  "ticketKey": "GAPS-20261122-D6E4",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/gaps-20261122-d6e4-keep-api-tests-in-step-with-th-425c",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "The Orders API spec documents GET /products/{id} (getProduct) and POST /orders/{id}/cancel (cancelOrder), but no test calls them. Add Vitest API tests (real app in-process, as the existing specs do) for each one's success response and every error response the spec documents (404 for both, 409 for cancelling an already-cancelled order). Running the suite also showed that the existing GET /orders/{id} test still asserts the old `totalCents` field, while the spec (and the app) now return `total: { amount, currency }`. That test gets updated to the current contract.",
+    "inScope": [
+      "GET /products/{id}: 200 Product and 404 Error",
+      "POST /orders/{id}/cancel: 200 Order (status cancelled), 404 Error and 409 Error",
+      "Updating the existing GET /orders/{id} success test from totalCents to the spec's total Money object, keeping all its other checks"
+    ],
+    "outOfScope": [
+      "Operations that tests already call (listProducts, placeOrder), apart from the stale getOrder assertion",
+      "Changes to the spec or the application",
+      "Restructuring the existing specs (e.g. a shared server helper); listed as a follow-up only"
+    ],
+    "assumptions": [
+      "The app runs for real, in-process: createApp() listens on port 0 in each spec file, as test/products.test.js and test/orders.test.js already do. Nothing is faked.",
+      "Each createApp() gets a fresh in-memory store, so each test creates the order it cancels and asserts only on that order.",
+      "The new tests go into the existing spec files beside each resource's tests (getProduct in test/products.test.js, cancelOrder in test/orders.test.js). They reuse those files' server setup instead of copying it."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "Cancelling puts the stock back, which could change what other tests in the same file see if they depend on stock",
+        "impact": "low",
+        "mitigation": "Cancel tests use product 3 (Mug, stock 40). The stock-short test uses product 4 (stock 0), so neither affects the other."
+      },
+      {
+        "description": "A test could pass without checking the contract if it asserted only the status",
+        "impact": "medium",
+        "mitigation": "Each test asserts the status, the JSON content type and the full body shape. Values that the request determines (id, status, total amount and currency) are checked exactly."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "GET /products/{id} returns 200 with the Product (id, name, priceCents, stock) for an existing id, and 404 with an Error body for an unknown id",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "POST /orders/{id}/cancel returns 200 with the Order, status cancelled, for a placed order; 404 with an Error body for an unknown order; and 409 with an Error body for an order that is already cancelled",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "The tests of GET /orders/{id} assert the current contract: the total is a Money object {amount, currency}",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "returns one product",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "App started in-process"
+        ],
+        "steps": [
+          "GET /products/2"
+        ],
+        "expected": "200, application/json, body equals the Teapot product {id: 2, name, priceCents, stock} from the seed catalogue (store PRODUCTS)",
+        "testData": "product 2 (Teapot) from src/store.js PRODUCTS",
+        "targetFile": "test/products.test.js",
+        "automate": true,
+        "rationale": "getProduct (GET /products/{id}) is untested. This covers its 200 Product response."
+      },
+      {
+        "id": "TC2",
+        "title": "is 404 for an unknown product",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "App started in-process"
+        ],
+        "steps": [
+          "GET /products/99"
+        ],
+        "expected": "404, application/json, body {error: <string>}",
+        "testData": "id 99",
+        "targetFile": "test/products.test.js",
+        "automate": true,
+        "rationale": "getProduct: covers the spec's documented 404 NotFound response."
+      },
+      {
+        "id": "TC3",
+        "title": "cancels a placed order",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "An order placed by the test for product 3, quantity 2"
+        ],
+        "steps": [
+          "POST /orders with productId 3, quantity 2",
+          "POST /orders/{id}/cancel"
+        ],
+        "expected": "200, application/json, body equals {id, productId: 3, quantity: 2, status: 'cancelled', total: {amount: 1398, currency: 'USD'}}",
+        "testData": "product 3 (Mug, 699 cents)",
+        "targetFile": "test/orders.test.js",
+        "automate": true,
+        "rationale": "cancelOrder (POST /orders/{id}/cancel) is untested. This covers its 200 Order response."
+      },
+      {
+        "id": "TC4",
+        "title": "is 404 when cancelling an unknown order",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "App started in-process"
+        ],
+        "steps": [
+          "POST /orders/999/cancel"
+        ],
+        "expected": "404, application/json, body {error: <string>}",
+        "testData": "id 999",
+        "targetFile": "test/orders.test.js",
+        "automate": true,
+        "rationale": "cancelOrder: covers the spec's documented 404 response."
+      },
+      {
+        "id": "TC5",
+        "title": "is 409 when the order is already cancelled",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "negative",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [
+          "An order placed and cancelled by the test"
+        ],
+        "steps": [
+          "Place an order for product 3",
+          "Cancel it and check for 200",
+          "Cancel it again"
+        ],
+        "expected": "409, application/json, body {error: <string>}",
+        "testData": "product 3",
+        "targetFile": "test/orders.test.js",
+        "automate": true,
+        "rationale": "cancelOrder: covers the spec's documented 409 response."
+      },
+      {
+        "id": "TC6",
+        "title": "returns an order with its total",
+        "level": "integration",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [
+          "An order placed by the test for product 1, quantity 2"
+        ],
+        "steps": [
+          "Place the order",
+          "GET /orders/{id}"
+        ],
+        "expected": "200, body equals {id, productId: 1, quantity: 2, status: 'placed', total: {amount: 4998, currency: 'USD'}}",
+        "testData": "product 1 (Kettle, 2499 cents)",
+        "targetFile": "test/orders.test.js",
+        "automate": true,
+        "rationale": "getOrder: the existing test asserts the old totalCents field and fails against the app. The spec's Order.total is now a Money object, so the assertion moves to the new shape and keeps checking the same amount. Its other checks stay as they are."
+      }
+    ],
+    "environmentNotes": "No external services. Each spec starts the app in-process on an OS-chosen port and fetches against it."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/orders.test.js test/products.test.js --reporter=json --outputFile=/data/workspaces/d6e4910f-fe31-47c5-a702-dd6efbe04cfa/reports/attempt-0/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 485,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "total": 13,
+      "cases": [
+        {
+          "title": "POST /orders places an order",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 26.436436000000015
+        },
+        {
+          "title": "POST /orders refuses a quantity under one",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 2.7537349999999776
+        },
+        {
+          "title": "POST /orders is 404 for an unknown product",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 1.4134959999999808
+        },
+        {
+          "title": "POST /orders is 409 when the stock is short",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 1.320637000000005
+        },
+        {
+          "title": "GET /orders/{id} returns an order with its total",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 3.0221750000000043
+        },
+        {
+          "title": "GET /orders/{id} is 404 for an unknown order",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 1.3960710000000063
+        },
+        {
+          "title": "POST /orders/{id}/cancel cancels a placed order",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 15.64005499999999
+        },
+        {
+          "title": "POST /orders/{id}/cancel is 404 when cancelling an unknown order",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 1.1089079999999853
+        },
+        {
+          "title": "POST /orders/{id}/cancel is 409 when the order is already cancelled",
+          "file": "test/orders.test.js",
+          "status": "passed",
+          "durationMs": 2.7576709999999878
+        },
+        {
+          "title": "GET /products lists every product",
+          "file": "test/products.test.js",
+          "status": "passed",
+          "durationMs": 25.011674
+        },
+        {
+          "title": "GET /products lists the products whose name contains q, in any case",
+          "file": "test/products.test.js",
+          "status": "passed",
+          "durationMs": 10.485970000000009
+        },
+        {
+          "title": "GET /products/{id} returns one product",
+          "file": "test/products.test.js",
+          "status": "passed",
+          "durationMs": 2.0820229999999924
+        },
+        {
+          "title": "GET /products/{id} is 404 for an unknown product",
+          "file": "test/products.test.js",
+          "status": "passed",
+          "durationMs": 1.1788139999999885
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "test/orders.test.js",
+      "status": "modified"
+    },
+    {
+      "path": "test/products.test.js",
+      "status": "modified"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "run_command",
+      "submit_strategy",
+      "submit_strategy",
+      "run_checks",
+      "run_tests",
+      "self_check",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "submit_strategy",
+        "category": "standards",
+        "reason": "strategy submitted before testforge:refactor were loaded",
+        "stage": "strategy"
+      },
+      {
+        "tool": "Edit",
+        "category": "standards",
+        "reason": "test/products.test.js written before testforge:unit, testforge:vitest, testforge:api were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 2
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_command": 1,
+      "run_checks": 1,
+      "self_check": 1
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.8188947999999999,
+    "inputTokens": 887471,
+    "outputTokens": 2480
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.43328419999999995,
+      "inputTokens": 116,
+      "cacheReadTokens": 671401,
+      "cacheCreationTokens": 58920,
+      "outputTokens": 197,
+      "responses": 14
+    }
+  },
+  "startedAt": "2026-11-22T10:04:28.610Z",
+  "finishedAt": "2026-11-22T10:06:36.011Z"
+}
