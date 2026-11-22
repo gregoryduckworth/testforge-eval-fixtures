@@ -1,0 +1,294 @@
+{
+  "status": "succeeded",
+  "workflow": "ticket",
+  "ticketKey": "ORD-77",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/ord-77-main-fails-two-tests-since-the-yr9a",
+  "frameworks": [
+    "vitest"
+  ],
+  "strategy": {
+    "summary": "Two tests on main fail. formatPrice now returns '12.50 USD' instead of '$12.50', a deliberate change recorded in CHANGELOG 1.1.0, so test/money.test.js is stale and gets updated (plus a case for the new currency argument). shippingFor(5000) returns 499 because the RATES band check uses `subtotal > over`, which contradicts FREE_SHIPPING_FROM (\"this much or more ships free\"). That is an application defect: the assertion stays, a defect is recorded, and the test is marked expected-to-fail.",
+    "inScope": [
+      "test/money.test.js formatPrice expectations",
+      "test/shipping.test.js free-shipping boundary",
+      "Root-cause triage of both failures"
+    ],
+    "outOfScope": [
+      "Changing application source (src/shipping.js fix belongs to the dev team)"
+    ],
+    "assumptions": [
+      "CHANGELOG 1.1.0 states the formatPrice change ('12.50 USD', currency as second argument) is intended, so the old '$12.50' expectation is a test bug.",
+      "Goods costing exactly $50.00 should ship free, as the FREE_SHIPPING_FROM doc comment and the existing test say (asked as Q1). The RATES `>` check is therefore the defect."
+    ],
+    "openQuestions": [
+      "Q1: should exactly $50.00 ship free (FREE_SHIPPING_FROM doc) or only above $50 (RATES doc 'applies above its over')?"
+    ],
+    "risks": [
+      {
+        "description": "Customers with exactly $50 of goods are charged $4.99 shipping, and orderTotal inherits this.",
+        "impact": "high",
+        "mitigation": "TC3 keeps the boundary assertion as an expected failure with a recorded defect, so it flips once the code is fixed."
+      },
+      {
+        "description": "Updating the formatPrice test could hide a regression if the format change were accidental.",
+        "impact": "low",
+        "mitigation": "Grounded in CHANGELOG 1.1.0, and TC2 also pins the explicit currency argument."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "formatPrice shows a price in cents as the amount with two decimals followed by its ISO currency code, defaulting to USD (formatPrice(1250) === '12.50 USD').",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "formatPrice uses the currency passed as its second argument (formatPrice(1250, 'EUR') === '12.50 EUR').",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "Goods costing exactly FREE_SHIPPING_FROM (5000 cents) ship free: shippingFor(5000) === 0.",
+        "derived": true
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "formats a price with its currency code after the amount",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Call formatPrice(1250)"
+        ],
+        "expected": "Returns '12.50 USD'",
+        "testData": "1250 cents",
+        "targetFile": "test/money.test.js",
+        "automate": true,
+        "rationale": "Replaces the stale '$12.50' expectation with the 1.1.0 format."
+      },
+      {
+        "id": "TC2",
+        "title": "formats a price in the currency it is given",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "positive",
+        "priority": "medium",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Call formatPrice(1250, 'EUR')"
+        ],
+        "expected": "Returns '12.50 EUR'",
+        "testData": "1250 cents, EUR",
+        "targetFile": "test/money.test.js",
+        "automate": true,
+        "rationale": "The currency argument is new in 1.1.0 and was untested."
+      },
+      {
+        "id": "TC3",
+        "title": "ships free from $50",
+        "level": "unit",
+        "framework": "vitest",
+        "type": "regression",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Call shippingFor(FREE_SHIPPING_FROM) (imported from src/shipping.js)"
+        ],
+        "expected": "Returns 0. It currently returns 499, so the test is kept and marked expected-to-fail with a recorded defect.",
+        "testData": "5000 cents",
+        "targetFile": "test/shipping.test.js",
+        "automate": true,
+        "rationale": "Pins the boundary that regressed."
+      }
+    ],
+    "environmentNotes": "No services; plain vitest unit tests run with npm test."
+  },
+  "results": [
+    {
+      "framework": "vitest",
+      "command": "vitest run test/money.test.js test/shipping.test.js --reporter=json --outputFile=/data/workspaces/8d88374b-047b-424c-97e2-4a811dc3519f/reports/attempt-1/vitest-0/vitest.json --coverage.enabled=false",
+      "exitCode": 0,
+      "durationMs": 371,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "total": 6,
+      "cases": [
+        {
+          "title": "formatPrice formats a price with its currency code after the amount",
+          "file": "test/money.test.js",
+          "status": "passed",
+          "durationMs": 1.1196470000000005
+        },
+        {
+          "title": "formatPrice formats a price in the currency it is given",
+          "file": "test/money.test.js",
+          "status": "passed",
+          "durationMs": 0.14770500000000197
+        },
+        {
+          "title": "formatPrice refuses a price that is not a whole number of cents",
+          "file": "test/money.test.js",
+          "status": "passed",
+          "durationMs": 0.2729539999999986
+        },
+        {
+          "title": "shippingFor charges the flat rate under $50",
+          "file": "test/shipping.test.js",
+          "status": "passed",
+          "durationMs": 0.9958579999999984
+        },
+        {
+          "title": "shippingFor ships free from $50",
+          "file": "test/shipping.test.js",
+          "status": "passed",
+          "durationMs": 3.6755169999999993
+        },
+        {
+          "title": "shippingFor ships free above $50",
+          "file": "test/shipping.test.js",
+          "status": "passed",
+          "durationMs": 0.12753899999999874
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "test/money.test.js",
+      "status": "modified"
+    },
+    {
+      "path": "test/shipping.test.js",
+      "status": "modified"
+    }
+  ],
+  "defects": [
+    {
+      "title": "shippingFor charges $4.99 on goods costing exactly $50 (FREE_SHIPPING_FROM)",
+      "testCaseId": "TC3",
+      "file": "test/shipping.test.js",
+      "description": "AC3: FREE_SHIPPING_FROM (5000) is documented as \"orders whose goods cost this much or more ship free\", and the test from the last good run expected shippingFor(5000) === 0. But shippingFor picks its band from RATES with `subtotal > b.over` (src/shipping.js:18). The free band { over: 5000 } therefore applies only above 5000, and exactly 5000 gets the flat 499. orderTotal inherits this. Fix: compare with `>=` for non-zero bands, or derive the free band from FREE_SHIPPING_FROM.",
+      "evidence": "AssertionError: expected 499 to be +0 at test/shipping.test.js:11 (shippingFor(FREE_SHIPPING_FROM))"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "run_command",
+      "ask_human",
+      "submit_strategy",
+      "run_tests",
+      "record_defect",
+      "run_tests",
+      "run_checks",
+      "self_check",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "test/money.test.js written before testforge:unit were loaded",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_command": 1,
+      "ask_human": 1,
+      "record_defect": 1,
+      "run_checks": 1,
+      "self_check": 1
+    },
+    "subagentCalls": 0
+  },
+  "questions": [
+    {
+      "id": "Q1",
+      "question": "Should an order whose goods cost exactly $50.00 ship free? The constant FREE_SHIPPING_FROM in src/shipping.js says orders costing \"this much or more\" ship free, and the existing test agrees. But the RATES table that shippingFor actually uses applies a band only strictly above its `over` value, so at exactly 5000 cents it charges $4.99.",
+      "assumption": "Yes, exactly $50 ships free. I'll keep the shippingFor(5000) === 0 assertion, record the `>`-vs-`>=` boundary as an application defect, and mark that test expected-to-fail. The formatPrice failure is a test bug, because CHANGELOG 1.1.0 deliberately changed the format to '12.50 USD', so I'll update that test.",
+      "stage": "strategy",
+      "answer": "No preference from the reviewer: decide yourself from the code, record the decision as an assumption and carry on."
+    }
+  ],
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.6507848,
+    "inputTokens": 834605,
+    "outputTokens": 1817
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.3780300000000001,
+      "inputTokens": 96,
+      "cacheReadTokens": 666805,
+      "cacheCreationTokens": 47529,
+      "outputTokens": 332,
+      "responses": 15
+    }
+  },
+  "startedAt": "2026-11-22T11:25:01.092Z",
+  "finishedAt": "2026-11-22T11:26:38.333Z"
+}
