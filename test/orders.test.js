@@ -1,3 +1,4 @@
+// GAPS-20261122-D754: TC1, TC2, TC3, TC4, TC5
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 
@@ -18,6 +19,15 @@ const placeOrder = (body) =>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
+
+const cancelOrder = (id) => fetch(`${base}/orders/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+
+/** Places an order and returns its id, failing with the body when the API refuses it. */
+async function placedOrderId(body) {
+  const response = await placeOrder(body);
+  if (response.status !== 201) throw new Error(`placing ${JSON.stringify(body)} failed: ${response.status} ${await response.text()}`);
+  return (await response.json()).id;
+}
 
 describe('POST /orders', () => {
   it('places an order', async () => {
@@ -47,11 +57,71 @@ describe('GET /orders/{id}', () => {
     const { id } = await (await placeOrder({ productId: 1, quantity: 2 })).json();
     const response = await fetch(`${base}/orders/${id}`);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ id, productId: 1, quantity: 2, status: 'placed', totalCents: 4998 });
+    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(await response.json()).toEqual({
+      id,
+      productId: 1,
+      quantity: 2,
+      status: 'placed',
+      total: { amount: 4998, currency: 'USD' },
+    });
+  });
+
+  it('returns a cancelled order with status cancelled', async () => {
+    const id = await placedOrderId({ productId: 3, quantity: 1 });
+    const cancelled = await cancelOrder(id);
+    expect(cancelled.status).toBe(200);
+
+    const response = await fetch(`${base}/orders/${id}`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      id,
+      productId: 3,
+      quantity: 1,
+      status: 'cancelled',
+      total: { amount: 699, currency: 'USD' },
+    });
   });
 
   it('is 404 for an unknown order', async () => {
     const response = await fetch(`${base}/orders/999`);
     expect(response.status).toBe(404);
+  });
+});
+
+describe('POST /orders/{id}/cancel', () => {
+  it('cancels a placed order', async () => {
+    const id = await placedOrderId({ productId: 3, quantity: 2 });
+
+    const response = await cancelOrder(id);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(await response.json()).toEqual({
+      id,
+      productId: 3,
+      quantity: 2,
+      status: 'cancelled',
+      total: { amount: 1398, currency: 'USD' },
+    });
+  });
+
+  it('is 404 when cancelling an unknown order', async () => {
+    const response = await cancelOrder(999);
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: expect.any(String) });
+  });
+
+  it('is 409 when cancelling an order already cancelled', async () => {
+    const id = await placedOrderId({ productId: 3, quantity: 1 });
+    const first = await cancelOrder(id);
+    expect(first.status).toBe(200);
+
+    const response = await cancelOrder(id);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: expect.any(String) });
   });
 });
