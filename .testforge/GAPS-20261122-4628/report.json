@@ -1,0 +1,322 @@
+{
+  "status": "succeeded",
+  "workflow": "gaps",
+  "ticketKey": "GAPS-20261122-4628",
+  "repo": "https://github.com/gregoryduckworth/testforge-eval-fixtures",
+  "branch": "testforge/gaps-20261122-4628-write-a-smoke-suite-b72o",
+  "frameworks": [
+    "playwright"
+  ],
+  "strategy": {
+    "summary": "Add a read-only Playwright smoke suite (tests/smoke.spec.js) for the Kettle & Co. tea shop. Each test is tagged @smoke, reaches the shop only through the configured baseURL (BASE_URL or the local webServer), and checks one critical path: the health endpoint, the catalogue, a product page, adding to the cookie cart in the browser, the cart page and the checkout form — without ever placing an order (POST /orders is the only server write).",
+    "inScope": [
+      "GET /health",
+      "Catalogue page /",
+      "Product page /products/:id",
+      "Client-side Add to cart (cookie only, no request)",
+      "Cart page /cart from a cart cookie",
+      "Checkout page /checkout form rendered (not submitted)"
+    ],
+    "outOfScope": [
+      "Placing an order (POST /orders) and the order confirmation page: they write data, so they stay in the full suite (tests/checkout.spec.js)",
+      "Validation, 404/405 and error paths"
+    ],
+    "assumptions": [
+      "The catalogue (src/catalogue.js PRODUCTS) is shipped code, not seeded data, so every environment shows it; tests import PRODUCTS and formatPrice from src/catalogue.js instead of copying names/prices.",
+      "Adding to the cart and setting the cart cookie only change the test's own browser context (public/app.js writes a cookie; no request is made), so they don't write server data.",
+      "No first-party service is faked: the tests run against the real shop (local webServer from playwright.config.js, or a deployed build via BASE_URL). The shop has no sign-in.",
+      "The tests are not run in this session (target is a non-disposable deployed build); the PR's CI (npx playwright test) runs them."
+    ],
+    "openQuestions": [],
+    "risks": [
+      {
+        "description": "A smoke test accidentally submits the checkout form and places a real order in production.",
+        "impact": "high",
+        "mitigation": "The checkout case only asserts the form's fields and button are visible; no test clicks Place order or issues a non-GET request."
+      },
+      {
+        "description": "Catalogue changes break assertions.",
+        "impact": "low",
+        "mitigation": "Names and prices are imported from src/catalogue.js."
+      }
+    ],
+    "acceptanceCriteria": [
+      {
+        "id": "AC1",
+        "text": "The deployed shop is up: GET /health answers 200 with {\"status\":\"ok\"}.",
+        "derived": true
+      },
+      {
+        "id": "AC2",
+        "text": "A user can open the catalogue and see every product with its price.",
+        "derived": true
+      },
+      {
+        "id": "AC3",
+        "text": "A user can open a product page showing its name, price and an Add to cart button.",
+        "derived": true
+      },
+      {
+        "id": "AC4",
+        "text": "A user can add a product to the cart in the browser and the cart count updates.",
+        "derived": true
+      },
+      {
+        "id": "AC5",
+        "text": "A user with items in the cart sees them and the total on the cart page.",
+        "derived": true
+      },
+      {
+        "id": "AC6",
+        "text": "A user with items in the cart can reach the checkout form (Name, Email, Address, Place order).",
+        "derived": true
+      },
+      {
+        "id": "AC7",
+        "text": "Every smoke test is tagged @smoke in its title, reaches the app only through the base URL, and only reads (no order placed, no POST).",
+        "derived": true,
+        "metBy": "tests/smoke.spec.js: every test title ends in @smoke, uses relative paths against Playwright's baseURL, and makes only GET requests (page.goto/request.get); no form is submitted."
+      }
+    ],
+    "testCases": [
+      {
+        "id": "TC1",
+        "title": "health endpoint reports the shop is up @smoke",
+        "level": "api",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC1"
+        ],
+        "preconditions": [
+          "Shop reachable at baseURL"
+        ],
+        "steps": [
+          "GET /health with the request fixture"
+        ],
+        "expected": "Status 200 and JSON body {\"status\":\"ok\"}",
+        "testData": "",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the app starts and answers; the cheapest go/no-go signal."
+      },
+      {
+        "id": "TC2",
+        "title": "catalogue lists every product with its price @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "critical",
+        "acceptanceCriteria": [
+          "AC2"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Open /"
+        ],
+        "expected": "Heading 'Our teaware'; a link per product in PRODUCTS by exact name, each list item showing its formatted price",
+        "testData": "PRODUCTS from src/catalogue.js",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the home page/catalogue is the entry point of every purchase."
+      },
+      {
+        "id": "TC3",
+        "title": "product page shows the product and an Add to cart button @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC3"
+        ],
+        "preconditions": [],
+        "steps": [
+          "Open / and click the first product's link"
+        ],
+        "expected": "URL /products/<id>; heading is the product name; price shown; Add to cart button visible",
+        "testData": "PRODUCTS[0]",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: reaching a product from the catalogue."
+      },
+      {
+        "id": "TC4",
+        "title": "adding a product updates the cart count @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC4"
+        ],
+        "preconditions": [
+          "Fresh browser context (empty cart)"
+        ],
+        "steps": [
+          "Open a product page",
+          "Click Add to cart"
+        ],
+        "expected": "Status 'Added to your cart'; header link reads 'Cart (1)'",
+        "testData": "PRODUCTS[0]",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the client script (app.js) loads and the cart works; writes only a browser cookie."
+      },
+      {
+        "id": "TC5",
+        "title": "cart page shows the items in the cart and their total @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC5"
+        ],
+        "preconditions": [
+          "cart cookie set for baseURL, e.g. <id>:2"
+        ],
+        "steps": [
+          "Add cart cookie to the context",
+          "Open /cart"
+        ],
+        "expected": "Heading 'Your cart'; a row for the product with quantity 2; total equals formatted 2× price; 'Go to checkout' link visible",
+        "testData": "PRODUCTS[0], quantity 2",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: the server reads the cart and renders the basket."
+      },
+      {
+        "id": "TC6",
+        "title": "checkout page shows the order form without placing an order @smoke",
+        "level": "e2e",
+        "framework": "playwright",
+        "type": "positive",
+        "priority": "high",
+        "acceptanceCriteria": [
+          "AC6"
+        ],
+        "preconditions": [
+          "cart cookie set"
+        ],
+        "steps": [
+          "Add cart cookie",
+          "Open /checkout"
+        ],
+        "expected": "Heading 'Checkout'; Name, Email, Address fields and 'Place order' button visible; nothing submitted",
+        "testData": "PRODUCTS[0], quantity 1",
+        "targetFile": "tests/smoke.spec.js",
+        "automate": true,
+        "rationale": "Critical path: checkout is reachable; placing the order is left to the full suite because it writes."
+      }
+    ],
+    "environmentNotes": "BASE_URL selects a deployed build; without it playwright.config.js starts node src/server.js on 4175. CI runs npx playwright test after installing chromium."
+  },
+  "results": [],
+  "files": [
+    {
+      "path": "tests/smoke.spec.js",
+      "status": "added"
+    }
+  ],
+  "flow": {
+    "sequence": [
+      "recall",
+      "submit_strategy",
+      "run_checks",
+      "self_check",
+      "run_command",
+      "request_review",
+      "publish"
+    ],
+    "refusals": [
+      {
+        "tool": "Write",
+        "category": "standards",
+        "reason": "tests/smoke.spec.js written before testforge:api, testforge:implementation were loaded",
+        "stage": "author"
+      },
+      {
+        "tool": "run_command",
+        "category": "command",
+        "reason": "`playwright` runs tests, and this run writes a smoke suite for http://host.docker.internal:61644, which isn't marked disposable, without running it.",
+        "stage": "author"
+      }
+    ],
+    "refusalsByCategory": {
+      "standards": 1,
+      "command": 1
+    },
+    "optionalTools": {
+      "recall": 1,
+      "run_checks": 1,
+      "self_check": 1,
+      "run_command": 1,
+      "request_review": 1
+    },
+    "subagentCalls": 0
+  },
+  "memory": {
+    "recalled": [
+      "m-d553dbea",
+      "m-0bf2ddfe",
+      "m-962b3658",
+      "m-5c0e6ee3",
+      "m-1cd6bf7a",
+      "m-ca4dcde3",
+      "m-84e4bd1c",
+      "m-0a29de4f",
+      "m-cebc1679",
+      "m-5b2a9d62",
+      "m-f54cdf4f",
+      "m-a8309b12",
+      "m-b97d98fc",
+      "m-6df4c4fb",
+      "m-7172b33f",
+      "m-af9597b1",
+      "m-3843cd64",
+      "m-770f3a4e",
+      "m-49fac88f",
+      "m-17749d98",
+      "m-fe671c4f",
+      "m-470795a4",
+      "m-5916ace6",
+      "m-cb39a525",
+      "m-3ead81ca",
+      "m-6a078419",
+      "m-b8c5c2c4",
+      "m-2aa5b11f",
+      "m-6d1a1e7f",
+      "m-abfa764b",
+      "m-137c8793",
+      "m-77eef2c3",
+      "m-02bf91ac",
+      "m-e7c33c93",
+      "m-4ca86ea7",
+      "m-4c541c12",
+      "m-13df9c61",
+      "m-8963ea88",
+      "m-3296a462",
+      "m-dc84352b"
+    ],
+    "candidates": []
+  },
+  "usage": {
+    "costUsd": 0.8082462000000001,
+    "inputTokens": 807180,
+    "outputTokens": 3501
+  },
+  "usageByRole": {
+    "lead": {
+      "costUsd": 0.43634200000000006,
+      "inputTokens": 112,
+      "cacheReadTokens": 570320,
+      "cacheCreationTokens": 63650,
+      "outputTokens": 179,
+      "responses": 12
+    }
+  },
+  "startedAt": "2026-11-22T10:18:36.287Z",
+  "finishedAt": "2026-11-22T10:20:49.152Z"
+}
