@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BookingError, createBookings } from '../src/bookings';
-
-/** A time on 2 March 2026, in UTC. */
-const at = (time: string) => new Date(`2026-03-02T${time}:00Z`);
+import { at } from './time';
 
 describe('book', () => {
   it('books a free room', async () => {
